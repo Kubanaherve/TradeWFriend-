@@ -5,13 +5,15 @@ import { Input } from "@/components/ui/input";
 import { labels, formatCurrency, formatDate } from "@/lib/kinyarwanda";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Package, Trash2, X, Save } from "lucide-react";
+import { ArrowLeft, Plus, Package, Trash2, X, Save, ShoppingCart, Check } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { RecordSaleModal } from "@/components/RecordSaleModal";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface InventoryItem {
   id: string;
@@ -28,6 +30,9 @@ const InventoryPage = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showSaleModal, setShowSaleModal] = useState(false);
+  const [selectedItemForSale, setSelectedItemForSale] = useState<InventoryItem | null>(null);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   
   const [form, setForm] = useState({
@@ -169,16 +174,68 @@ const InventoryPage = () => {
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Sell Selected Button */}
+            {selectedItems.size > 0 && (
+              <div className="glass-card p-3 bg-primary/10 flex items-center justify-between animate-fade-in">
+                <span className="text-sm font-medium">
+                  {selectedItems.size} byahiswemo
+                </span>
+                <Button
+                  size="sm"
+                  className="btn-gold"
+                  onClick={() => {
+                    // Get the first selected item for now
+                    const firstId = Array.from(selectedItems)[0];
+                    const item = items.find(i => i.id === firstId);
+                    if (item) {
+                      setSelectedItemForSale(item);
+                      setShowSaleModal(true);
+                    }
+                  }}
+                >
+                  <ShoppingCart size={14} className="mr-1" />
+                  Gurisha
+                </Button>
+              </div>
+            )}
+
             {items.map((item) => (
               <div
                 key={item.id}
-                className="glass-card p-4 animate-fade-in"
+                className={`glass-card p-4 animate-fade-in transition-all ${
+                  selectedItems.has(item.id) ? 'ring-2 ring-primary bg-primary/5' : ''
+                }`}
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start gap-3">
+                  {/* Selection Checkbox */}
+                  <div className="pt-1">
+                    <Checkbox
+                      checked={selectedItems.has(item.id)}
+                      onCheckedChange={(checked) => {
+                        const newSelected = new Set(selectedItems);
+                        if (checked) {
+                          newSelected.add(item.id);
+                        } else {
+                          newSelected.delete(item.id);
+                        }
+                        setSelectedItems(newSelected);
+                      }}
+                    />
+                  </div>
+                  
                   <div className="flex-1">
-                    <h3 className="font-semibold text-sm">{item.item_name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm">{item.item_name}</h3>
+                      {item.quantity === 0 && (
+                        <span className="text-[10px] bg-red-500/20 text-red-600 px-1.5 py-0.5 rounded">
+                          Sold Out
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                      <span>Qty: {item.quantity}</span>
+                      <span className={item.quantity <= 2 ? 'text-orange-600 font-medium' : ''}>
+                        Qty: {item.quantity}
+                      </span>
                       <span>•</span>
                       <span>{formatCurrency(Number(item.cost_price))}</span>
                     </div>
@@ -189,12 +246,26 @@ const InventoryPage = () => {
                       {formatDate(item.date_bought)}
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  
+                  <div className="flex flex-col gap-2">
+                    {/* Quick Sell Button */}
+                    <button
+                      onClick={() => {
+                        setSelectedItemForSale(item);
+                        setShowSaleModal(true);
+                      }}
+                      className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                      title="Gurisha"
+                    >
+                      <ShoppingCart size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(item.id)}
+                      className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -304,6 +375,23 @@ const InventoryPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Record Sale Modal */}
+      <RecordSaleModal
+        open={showSaleModal}
+        onOpenChange={(open) => {
+          setShowSaleModal(open);
+          if (!open) {
+            setSelectedItemForSale(null);
+            setSelectedItems(new Set());
+          }
+        }}
+        onSuccess={() => {
+          fetchItems();
+          setSelectedItems(new Set());
+        }}
+        preSelectedItem={selectedItemForSale}
+      />
     </div>
   );
 };

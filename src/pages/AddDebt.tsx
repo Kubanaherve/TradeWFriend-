@@ -8,11 +8,14 @@ import { labels, smsTemplates, formatCurrency } from "@/lib/kinyarwanda";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Save, X, Phone, MessageCircle } from "lucide-react";
+import { CustomerAutocomplete } from "@/components/CustomerAutocomplete";
+import { useCustomerSuggestions } from "@/hooks/useCustomerSuggestions";
 
 const AddDebtPage = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [showSmsPreview, setShowSmsPreview] = useState(false);
+  const { customers } = useCustomerSuggestions();
   
   const [form, setForm] = useState({
     name: "",
@@ -22,6 +25,14 @@ const AddDebtPage = () => {
     dueDate: new Date().toISOString().split('T')[0],
     isPaid: false,
   });
+
+  const handleCustomerSelect = (customer: { name: string; phone: string | null }) => {
+    setForm(prev => ({
+      ...prev,
+      name: customer.name,
+      phone: customer.phone || "",
+    }));
+  };
 
   const handleSubmit = async () => {
     if (!form.name.trim() || !form.items.trim() || !form.amount) {
@@ -61,9 +72,10 @@ const AddDebtPage = () => {
 
   const handleSendSms = () => {
     const message = smsTemplates.debtConfirmation(form.items, formatCurrency(parseFloat(form.amount)));
-    const smsUrl = `sms:${form.phone}?body=${encodeURIComponent(message)}`;
-    window.open(smsUrl, '_blank');
-    navigate("/debts");
+    // Use proper SMS intent for mobile
+    const phone = form.phone.replace(/\s/g, '');
+    window.location.href = `sms:${phone}?body=${encodeURIComponent(message)}`;
+    setTimeout(() => navigate("/debts"), 500);
   };
 
   const handleSkipSms = () => {
@@ -130,16 +142,17 @@ const AddDebtPage = () => {
 
       <main className="p-4 max-w-lg mx-auto">
         <div className="glass-card animate-fade-in space-y-4">
-          {/* Customer Name */}
+          {/* Customer Name with Autocomplete */}
           <div>
             <label className="block text-xs font-medium mb-1.5">
               {labels.customerName} *
             </label>
-            <Input
+            <CustomerAutocomplete
               value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onChange={(value) => setForm({ ...form, name: value })}
+              onSelect={handleCustomerSelect}
+              suggestions={customers}
               placeholder="Andika izina..."
-              className="bg-white/50 input-glow"
             />
           </div>
 

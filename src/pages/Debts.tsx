@@ -14,6 +14,14 @@ import {
   Search,
   Users
 } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Customer {
   id: string;
@@ -54,7 +62,9 @@ const DebtsPage = () => {
   }, []);
 
   const handleCall = (phone: string) => {
-    window.open(`tel:${phone}`, '_blank');
+    // Use proper tel: protocol
+    const cleanPhone = phone.replace(/\s/g, '');
+    window.location.href = `tel:${cleanPhone}`;
   };
 
   const handleRemind = (customer: Customer) => {
@@ -63,8 +73,9 @@ const DebtsPage = () => {
       return;
     }
     const message = smsTemplates.debtReminder(customer.items, formatCurrency(customer.amount));
-    const smsUrl = `sms:${customer.phone}?body=${encodeURIComponent(message)}`;
-    window.open(smsUrl, '_blank');
+    const cleanPhone = customer.phone.replace(/\s/g, '');
+    // Use location.href for better mobile compatibility
+    window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(message)}`;
   };
 
   const handleMarkAsPaid = async (customer: Customer) => {
@@ -84,8 +95,8 @@ const DebtsPage = () => {
       // Offer to send thank you SMS
       if (customer.phone) {
         const message = smsTemplates.cashAcknowledgment();
-        const smsUrl = `sms:${customer.phone}?body=${encodeURIComponent(message)}`;
-        window.open(smsUrl, '_blank');
+        const cleanPhone = customer.phone.replace(/\s/g, '');
+        window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(message)}`;
       }
       
       fetchCustomers();
@@ -128,7 +139,7 @@ const DebtsPage = () => {
         </div>
       </header>
 
-      <main className="p-4 max-w-lg mx-auto space-y-4">
+      <main className="p-4 max-w-4xl mx-auto space-y-4">
         {/* Search */}
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -154,7 +165,7 @@ const DebtsPage = () => {
           </div>
         </div>
 
-        {/* Customer List */}
+        {/* Customer Table */}
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
@@ -174,74 +185,82 @@ const DebtsPage = () => {
             </Button>
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredCustomers.map((customer, index) => (
-              <div
-                key={customer.id}
-                className="glass-card p-4 animate-fade-in"
-                style={{ animationDelay: `${index * 0.05}s` }}
-              >
-                {/* Customer Info */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-sm truncate">{customer.name}</h3>
-                    {customer.phone && (
-                      <p className="text-xs text-muted-foreground">{customer.phone}</p>
-                    )}
-                  </div>
-                  <p className="text-base font-bold text-destructive shrink-0">
-                    {formatCurrency(customer.amount)}
-                  </p>
-                </div>
-
-                {/* Items */}
-                <div className="bg-muted/50 rounded-lg p-2 mb-3">
-                  <p className="text-xs text-muted-foreground mb-0.5">{labels.itemsTaken}</p>
-                  <p className="text-sm">{customer.items}</p>
-                </div>
-
-                {/* Date */}
-                {customer.due_date && (
-                  <p className="text-[10px] text-muted-foreground mb-3">
-                    {labels.dueDate}: {formatDate(customer.due_date)}
-                  </p>
-                )}
-
-                {/* Actions */}
-                <div className="flex gap-2">
-                  {customer.phone && (
-                    <>
-                      <Button
-                        onClick={() => handleCall(customer.phone!)}
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 h-9 text-xs"
-                      >
-                        <Phone size={14} className="mr-1" />
-                        {labels.call}
-                      </Button>
-                      <Button
-                        onClick={() => handleRemind(customer)}
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 h-9 text-xs"
-                      >
-                        <MessageCircle size={14} className="mr-1" />
-                        {labels.remind}
-                      </Button>
-                    </>
-                  )}
-                  <Button
-                    onClick={() => handleMarkAsPaid(customer)}
-                    size="sm"
-                    className="flex-1 h-9 text-xs btn-gold"
+          <div className="glass-card p-0 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="font-semibold">{labels.customerName}</TableHead>
+                  <TableHead className="font-semibold">{labels.itemsTaken}</TableHead>
+                  <TableHead className="font-semibold text-right">{labels.amount}</TableHead>
+                  <TableHead className="font-semibold text-center">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredCustomers.map((customer, index) => (
+                  <TableRow 
+                    key={customer.id}
+                    className="animate-fade-in"
+                    style={{ animationDelay: `${index * 0.03}s` }}
                   >
-                    <Check size={14} className="mr-1" />
-                    {labels.markAsPaid}
-                  </Button>
-                </div>
-              </div>
-            ))}
+                    <TableCell>
+                      <div>
+                        <p className="font-medium text-sm">{customer.name}</p>
+                        {customer.phone && (
+                          <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                        )}
+                        {customer.due_date && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {formatDate(customer.due_date)}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-sm line-clamp-2">{customer.items}</p>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <p className="font-bold text-destructive">
+                        {formatCurrency(customer.amount)}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-center gap-1">
+                        {customer.phone && (
+                          <>
+                            <Button
+                              onClick={() => handleCall(customer.phone!)}
+                              size="icon"
+                              variant="outline"
+                              className="h-8 w-8"
+                              title={labels.call}
+                            >
+                              <Phone size={14} />
+                            </Button>
+                            <Button
+                              onClick={() => handleRemind(customer)}
+                              size="icon"
+                              variant="outline"
+                              className="h-8 w-8"
+                              title={labels.sendMessage}
+                            >
+                              <MessageCircle size={14} />
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          onClick={() => handleMarkAsPaid(customer)}
+                          size="icon"
+                          className="h-8 w-8 btn-gold"
+                          title={labels.markAsPaid}
+                        >
+                          <Check size={14} />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </main>

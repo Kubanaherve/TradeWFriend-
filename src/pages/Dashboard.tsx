@@ -10,14 +10,27 @@ import {
   DollarSign, 
   LogOut, 
   Gem,
-  Users
+  Users,
+  Edit3,
+  Save,
+  X
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 
 interface DashboardStats {
   totalUnpaid: number;
   totalCustomers: number;
-  totalProfit: number;
+  totalSales: number;
+  totalCapital: number;
 }
 
 const DashboardPage = () => {
@@ -26,46 +39,95 @@ const DashboardPage = () => {
   const [stats, setStats] = useState<DashboardStats>({
     totalUnpaid: 0,
     totalCustomers: 0,
-    totalProfit: 0,
+    totalSales: 0,
+    totalCapital: 0,
   });
+  const [showCapitalModal, setShowCapitalModal] = useState(false);
+  const [capitalInput, setCapitalInput] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const fetchStats = async () => {
+    // Get unpaid debts
+    const { data: customers } = await supabase
+      .from("customers")
+      .select("amount, is_paid");
+    
+    const unpaid = customers?.filter(c => !c.is_paid).reduce((sum, c) => sum + Number(c.amount), 0) || 0;
+    const totalCustomers = customers?.filter(c => !c.is_paid).length || 0;
+
+    // Get total sales (money received when customers pay)
+    const paidCustomers = customers?.filter(c => c.is_paid).reduce((sum, c) => sum + Number(c.amount), 0) || 0;
+
+    // Get capital from settings
+    const { data: capitalSetting } = await supabase
+      .from("app_settings")
+      .select("setting_value")
+      .eq("setting_key", "total_capital")
+      .maybeSingle();
+
+    const capital = capitalSetting ? parseFloat(capitalSetting.setting_value) : 0;
+
+    setStats({
+      totalUnpaid: unpaid,
+      totalCustomers,
+      totalSales: paidCustomers,
+      totalCapital: capital,
+    });
+    setCapitalInput(capital.toString());
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
       navigate("/");
       return;
     }
-
-    const fetchStats = async () => {
-      // Get unpaid debts
-      const { data: customers } = await supabase
-        .from("customers")
-        .select("amount, is_paid");
-      
-      const unpaid = customers?.filter(c => !c.is_paid).reduce((sum, c) => sum + Number(c.amount), 0) || 0;
-      const totalCustomers = customers?.filter(c => !c.is_paid).length || 0;
-
-      // Get profit from sales
-      const { data: sales } = await supabase
-        .from("sales")
-        .select("cost_price, sale_price, quantity");
-      
-      const profit = sales?.reduce((sum, s) => 
-        sum + ((Number(s.sale_price) - Number(s.cost_price)) * s.quantity), 0) || 0;
-
-      setStats({
-        totalUnpaid: unpaid,
-        totalCustomers,
-        totalProfit: profit,
-      });
-    };
-
     fetchStats();
   }, [isAuthenticated, navigate]);
+
+  const handleSaveCapital = async () => {
+    if (!capitalInput || parseFloat(capitalInput) < 0) {
+      toast.error("Andika amafaranga meza");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Check if setting exists
+      const { data: existing } = await supabase
+        .from("app_settings")
+        .select("id")
+        .eq("setting_key", "total_capital")
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from("app_settings")
+          .update({ setting_value: capitalInput })
+          .eq("setting_key", "total_capital");
+      } else {
+        await supabase
+          .from("app_settings")
+          .insert({ setting_key: "total_capital", setting_value: capitalInput });
+      }
+
+      toast.success("Capital yahinduwe neza ✨");
+      setShowCapitalModal(false);
+      fetchStats();
+    } catch (error) {
+      console.error("Save error:", error);
+      toast.error("Habaye ikosa");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
     navigate("/");
   };
+
+  // Calculate profit = Total Sales - Capital
+  const totalProfit = stats.totalSales - stats.totalCapital;
 
   const menuItems = [
     {
@@ -152,13 +214,49 @@ const DashboardPage = () => {
           </div>
         </div>
 
+        {/* Capital Card */}
+        <div 
+          className="glass-card p-4 animate-fade-in cursor-pointer hover:scale-[1.02] transition-transform" 
+          style={{ animationDelay: '0.15s' }}
+          onClick={() => setShowCapitalModal(true)}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <DollarSign size={16} className="text-orange-600" />
+              </div>
+              <span className="text-[10px] text-muted-foreground">Capital (Ibyo waguzemo)</span>
+            </div>
+            <Edit3 size={14} className="text-muted-foreground" />
+          </div>
+          <p className="text-lg font-bold text-orange-600">
+            {formatCurrency(stats.totalCapital)}
+          </p>
+        </div>
+
+        {/* Total Sales Card */}
+        <div className="glass-card p-4 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <TrendingUp size={16} className="text-blue-600" />
+            </div>
+            <span className="text-[10px] text-muted-foreground">{labels.totalSales}</span>
+          </div>
+          <p className="text-lg font-bold text-blue-600">
+            {formatCurrency(stats.totalSales)}
+          </p>
+        </div>
+
         {/* Profit Card */}
-        <div className="glass-card-dark p-4 animate-fade-in gold-glow" style={{ animationDelay: '0.2s' }}>
+        <div className="glass-card-dark p-4 animate-fade-in gold-glow col-span-2" style={{ animationDelay: '0.25s' }}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-primary-foreground/70">{labels.totalProfit}</p>
-              <p className="text-2xl font-bold text-primary-foreground">
-                {formatCurrency(stats.totalProfit)}
+              <p className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {formatCurrency(totalProfit)}
+              </p>
+              <p className="text-[10px] text-primary-foreground/50 mt-1">
+                = {labels.totalSales} - Capital
               </p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center">
@@ -186,9 +284,85 @@ const DashboardPage = () => {
                 {item.description}
               </p>
             </button>
-          ))}
+        ))}
         </div>
       </main>
+
+      {/* Capital Edit Modal */}
+      <Dialog open={showCapitalModal} onOpenChange={setShowCapitalModal}>
+        <DialogContent className="max-w-sm mx-4 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base">Hindura Capital</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium mb-1.5">
+                Amafaranga yose waguzemo bijoux (Total Capital)
+              </label>
+              <Input
+                type="number"
+                value={capitalInput}
+                onChange={(e) => setCapitalInput(e.target.value)}
+                placeholder="0"
+                className="bg-muted/50 input-glow text-lg"
+                inputMode="numeric"
+                autoFocus
+              />
+              <p className="text-[10px] text-muted-foreground mt-1.5">
+                Andika amafaranga yose waguze isaha, bijoux, n'ibindi byose ugurisha
+              </p>
+            </div>
+
+            {/* Preview */}
+            {capitalInput && (
+              <div className="glass-card p-3 bg-muted/30 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Capital:</span>
+                  <span className="font-medium">{formatCurrency(parseFloat(capitalInput || "0"))}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">{labels.totalSales}:</span>
+                  <span className="font-medium">{formatCurrency(stats.totalSales)}</span>
+                </div>
+                <div className="border-t pt-2 flex justify-between text-sm">
+                  <span className="text-muted-foreground">{labels.totalProfit}:</span>
+                  <span className={`font-bold ${stats.totalSales - parseFloat(capitalInput || "0") >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                    {formatCurrency(stats.totalSales - parseFloat(capitalInput || "0"))}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <Button
+                onClick={() => setShowCapitalModal(false)}
+                variant="outline"
+                className="flex-1"
+                disabled={isSaving}
+              >
+                <X size={16} className="mr-1" />
+                {labels.cancel}
+              </Button>
+              <Button
+                onClick={handleSaveCapital}
+                className="flex-1 btn-gold"
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <div className="w-4 h-4 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Save size={16} className="mr-1" />
+                    {labels.save}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

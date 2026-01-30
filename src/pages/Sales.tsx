@@ -1,38 +1,37 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { labels, formatCurrency, formatDate } from "@/lib/kinyarwanda";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
   ArrowLeft, 
-  TrendingUp,
   DollarSign,
   Calendar,
   Award,
   BarChart3,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Wallet,
+  Save
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Sale {
   id: string;
   item_name: string;
-  cost_price: number;
   sale_price: number;
   quantity: number;
   date_sold: string;
-  created_at: string;
 }
 
 interface DaySummary {
   date: string;
   dayName: string;
   revenue: number;
-  profit: number;
+  balance: number | null;
   salesCount: number;
-  items: string[];
 }
 
 const DAYS_KIN = ["Ku cyumweru", "Ku wa mbere", "Ku wa kabiri", "Ku wa gatatu", "Ku wa kane", "Ku wa gatanu", "Ku wa gatandatu"];
@@ -41,27 +40,48 @@ const DAYS_SHORT = ["Cyu", "Mbe", "Kab", "Gat", "Kan", "Gat", "Gat"];
 const SalesPage = () => {
   const navigate = useNavigate();
   const [sales, setSales] = useState<Sale[]>([]);
+  const [balances, setBalances] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [editingBalance, setEditingBalance] = useState<string | null>(null);
+  const [balanceInput, setBalanceInput] = useState("");
 
-  const fetchSales = async () => {
+  const fetchData = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
+    
+    // Fetch sales
+    const { data: salesData, error: salesError } = await supabase
       .from("sales")
-      .select("*")
+      .select("id, item_name, sale_price, quantity, date_sold")
       .order("date_sold", { ascending: false });
 
-    if (error) {
-      console.error("Fetch error:", error);
+    if (salesError) {
+      console.error("Fetch sales error:", salesError);
       toast.error("Habaye ikosa mu gufata amakuru");
     } else {
-      setSales(data || []);
+      setSales(salesData || []);
     }
+
+    // Fetch daily balances from app_settings
+    const { data: settingsData } = await supabase
+      .from("app_settings")
+      .select("setting_key, setting_value")
+      .like("setting_key", "balance_%");
+
+    if (settingsData) {
+      const balanceMap: Record<string, number> = {};
+      settingsData.forEach(s => {
+        const date = s.setting_key.replace("balance_", "");
+        balanceMap[date] = parseFloat(s.setting_value) || 0;
+      });
+      setBalances(balanceMap);
+    }
+
     setIsLoading(false);
   };
 
   useEffect(() => {
-    fetchSales();
+    fetchData();
   }, []);
 
   // Calculate week dates based on offset
@@ -92,25 +112,20 @@ const SalesPage = () => {
 
   // Calculate daily summaries
   const dailySummaries = useMemo(() => {
-    const summaries: DaySummary[] = weekDates.map((date, index) => {
+    return weekDates.map((date, index) => {
       const dateStr = date.toISOString().split('T')[0];
       const daySales = weeklySales.filter(s => s.date_sold === dateStr);
-      
       const revenue = daySales.reduce((sum, s) => sum + (Number(s.sale_price) * s.quantity), 0);
-      const cost = daySales.reduce((sum, s) => sum + (Number(s.cost_price) * s.quantity), 0);
       
       return {
         date: dateStr,
         dayName: DAYS_KIN[index],
         revenue,
-        profit: revenue - cost,
-        salesCount: daySales.length,
-        items: daySales.map(s => s.item_name)
+        balance: balances[dateStr] ?? null,
+        salesCount: daySales.length
       };
     });
-    
-    return summaries;
-  }, [weeklySales, weekDates]);
+  }, [weeklySales, weekDates, balances]);
 
   // Find highest sale day
   const highestDay = useMemo(() => {
@@ -121,13 +136,16 @@ const SalesPage = () => {
   // Weekly totals
   const weeklyTotals = useMemo(() => {
     const revenue = weeklySales.reduce((sum, s) => sum + (Number(s.sale_price) * s.quantity), 0);
-    const cost = weeklySales.reduce((sum, s) => sum + (Number(s.cost_price) * s.quantity), 0);
+    const totalBalance = dailySummaries.reduce((sum, d) => sum + (d.balance || 0), 0);
+    const daysWithBalance = dailySummaries.filter(d => d.balance !== null).length;
+    
     return {
       revenue,
-      profit: revenue - cost,
-      salesCount: weeklySales.length
+      totalBalance,
+      salesCount: weeklySales.length,
+      daysWithBalance
     };
-  }, [weeklySales]);
+  }, [weeklySales, dailySummaries]);
 
   // Max revenue for chart scaling
   const maxRevenue = useMemo(() => {
@@ -135,12 +153,51 @@ const SalesPage = () => {
   }, [dailySummaries]);
 
   const weekLabel = useMemo(() => {
-    const start = weekDates[0];
-    const end = weekDates[6];
     if (weekOffset === 0) return "Iki cyumweru";
     if (weekOffset === -1) return "Icyumweru gishize";
-    return `${formatDate(start.toISOString())} - ${formatDate(end.toISOString())}`;
+    return `${formatDate(weekDates[0].toISOString())} - ${formatDate(weekDates[6].toISOString())}`;
   }, [weekDates, weekOffset]);
+
+  const saveBalance = async (date: string) => {
+    const amount = parseFloat(balanceInput);
+    if (isNaN(amount) || amount < 0) {
+      toast.error("Shyiramo umubare w'amafaranga");
+      return;
+    }
+
+    const key = `balance_${date}`;
+    
+    // Check if exists
+    const { data: existing } = await supabase
+      .from("app_settings")
+      .select("id")
+      .eq("setting_key", key)
+      .maybeSingle();
+
+    let error;
+    if (existing) {
+      const result = await supabase
+        .from("app_settings")
+        .update({ setting_value: amount.toString() })
+        .eq("setting_key", key);
+      error = result.error;
+    } else {
+      const result = await supabase
+        .from("app_settings")
+        .insert({ setting_key: key, setting_value: amount.toString() });
+      error = result.error;
+    }
+
+    if (error) {
+      toast.error("Habaye ikosa");
+      console.error(error);
+    } else {
+      toast.success("Byashyizweho!");
+      setBalances(prev => ({ ...prev, [date]: amount }));
+      setEditingBalance(null);
+      setBalanceInput("");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted to-background">
@@ -154,7 +211,7 @@ const SalesPage = () => {
             >
               <ArrowLeft size={18} />
             </button>
-            <h1 className="text-base font-bold">{labels.salesTracking}</h1>
+            <h1 className="text-base font-bold">Amafaranga y'icyumweru</h1>
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -199,13 +256,13 @@ const SalesPage = () => {
                     <div className="w-8 h-8 rounded-lg bg-secondary/20 flex items-center justify-center">
                       <DollarSign size={16} className="text-secondary" />
                     </div>
-                    <span className="text-[10px] text-muted-foreground">Ibyagurishijwe</span>
+                    <span className="text-[10px] text-muted-foreground">Amafaranga yinjiye</span>
                   </div>
                   <p className="text-lg font-bold text-foreground">
                     {formatCurrency(weeklyTotals.revenue)}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {weeklyTotals.salesCount} transactions
+                    {weeklyTotals.salesCount} ibyagurishijwe
                   </p>
                 </CardContent>
               </Card>
@@ -214,12 +271,15 @@ const SalesPage = () => {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
-                      <TrendingUp size={16} className="text-green-600" />
+                      <Wallet size={16} className="text-green-600" />
                     </div>
-                    <span className="text-[10px] text-muted-foreground">Inyungu</span>
+                    <span className="text-[10px] text-muted-foreground">Amafaranga asigaye</span>
                   </div>
-                  <p className={`text-lg font-bold ${weeklyTotals.profit >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                    {formatCurrency(weeklyTotals.profit)}
+                  <p className="text-lg font-bold text-green-600">
+                    {formatCurrency(weeklyTotals.totalBalance)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {weeklyTotals.daysWithBalance} iminsi yanditswe
                   </p>
                 </CardContent>
               </Card>
@@ -240,16 +300,8 @@ const SalesPage = () => {
                       <p className="font-bold text-lg">{highestDay.dayName}</p>
                       <p className="text-xs text-muted-foreground">{formatDate(highestDay.date)}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-xl text-amber-600">{formatCurrency(highestDay.revenue)}</p>
-                      <p className="text-xs text-green-600">+{formatCurrency(highestDay.profit)} inyungu</p>
-                    </div>
+                    <p className="font-bold text-xl text-amber-600">{formatCurrency(highestDay.revenue)}</p>
                   </div>
-                  {highestDay.items.length > 0 && (
-                    <p className="text-[10px] text-muted-foreground mt-2 truncate">
-                      Ibigurishijwe: {highestDay.items.slice(0, 3).join(", ")}{highestDay.items.length > 3 ? "..." : ""}
-                    </p>
-                  )}
                 </CardContent>
               </Card>
             )}
@@ -295,41 +347,75 @@ const SalesPage = () => {
               </CardContent>
             </Card>
 
-            {/* Daily Breakdown */}
+            {/* Daily Breakdown with Balance Entry */}
             <div className="space-y-2">
-              <h3 className="text-xs font-semibold text-muted-foreground px-1">Urutonde rw'iminsi</h3>
-              {dailySummaries.map((day, index) => (
-                <div
-                  key={day.date}
-                  className={`glass-card p-3 animate-fade-in ${
-                    day.salesCount === 0 ? 'opacity-50' : ''
-                  }`}
-                  style={{ animationDelay: `${0.4 + index * 0.05}s` }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-sm">{day.dayName}</p>
-                      <p className="text-[10px] text-muted-foreground">{formatDate(day.date)}</p>
+              <h3 className="text-xs font-semibold text-muted-foreground px-1">Urutonde rw'iminsi - Andika amafaranga asigaye</h3>
+              {dailySummaries.map((day, index) => {
+                const isEditing = editingBalance === day.date;
+                const isToday = day.date === new Date().toISOString().split('T')[0];
+                
+                return (
+                  <div
+                    key={day.date}
+                    className={`glass-card p-3 animate-fade-in ${isToday ? 'border-primary/50' : ''}`}
+                    style={{ animationDelay: `${0.4 + index * 0.05}s` }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-medium text-sm">{day.dayName}</p>
+                        <p className="text-[10px] text-muted-foreground">{formatDate(day.date)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-sm text-secondary">{formatCurrency(day.revenue)}</p>
+                        <p className="text-[10px] text-muted-foreground">yinjiye</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      {day.salesCount > 0 ? (
-                        <>
-                          <p className="font-bold text-sm">{formatCurrency(day.revenue)}</p>
-                          <p className={`text-[10px] ${day.profit >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                            +{formatCurrency(day.profit)}
-                          </p>
-                        </>
+                    
+                    {/* Balance Entry */}
+                    <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                      <Wallet size={14} className="text-green-600" />
+                      {isEditing ? (
+                        <div className="flex items-center gap-2 flex-1">
+                          <Input
+                            type="number"
+                            value={balanceInput}
+                            onChange={(e) => setBalanceInput(e.target.value)}
+                            placeholder="Amafaranga asigaye..."
+                            className="h-8 text-sm flex-1"
+                            autoFocus
+                          />
+                          <Button
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => saveBalance(day.date)}
+                          >
+                            <Save size={14} />
+                          </Button>
+                        </div>
                       ) : (
-                        <p className="text-xs text-muted-foreground">Nta byagurishijwe</p>
+                        <button
+                          onClick={() => {
+                            setEditingBalance(day.date);
+                            setBalanceInput(day.balance?.toString() || "");
+                          }}
+                          className="flex items-center justify-between flex-1 text-left"
+                        >
+                          <span className="text-xs text-muted-foreground">Asigaye:</span>
+                          {day.balance !== null ? (
+                            <span className="font-bold text-green-600">{formatCurrency(day.balance)}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">Kanda wandike...</span>
+                          )}
+                        </button>
                       )}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {weeklySales.length === 0 && (
-              <div className="text-center py-8">
+              <div className="text-center py-4">
                 <p className="text-muted-foreground text-sm">
                   Nta byagurishijwe muri iki cyumweru
                 </p>

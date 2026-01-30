@@ -188,11 +188,11 @@ const DashboardPage = () => {
     },
     {
       icon: DollarSign,
-      label: labels.profitRevenue,
+      label: labels.sideExpenses,
       path: "/sales",
       bgClass: "bg-gradient-to-br from-gold-light to-secondary",
       textDark: true,
-      description: "Inyungu n'amafaranga",
+      description: "Capital, Inyungu, n'Ibisohoka",
     },
   ];
 

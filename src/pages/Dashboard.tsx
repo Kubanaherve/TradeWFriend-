@@ -134,15 +134,18 @@ const DashboardPage = () => {
   const handleResetAll = async () => {
     setIsResetting(true);
     try {
-      // Delete all customers
-      await supabase.from("customers").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      // Delete all sales
+      // Delete all sales (revenue records)
       await supabase.from("sales").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      // Reset capital
+      // Reset capital to 0
       await supabase
         .from("app_settings")
         .update({ setting_value: "0" })
         .eq("setting_key", "total_capital");
+      // Reset paid status on customers (mark all as unpaid again for new cycle)
+      await supabase
+        .from("customers")
+        .update({ is_paid: false, paid_at: null })
+        .eq("is_paid", true);
 
       toast.success(labels.resetSuccess + " ✨");
       setShowResetModal(false);
@@ -429,9 +432,9 @@ const DashboardPage = () => {
               {labels.confirmResetAll}
             </p>
             <div className="glass-card p-3 bg-destructive/10 text-sm space-y-1">
-              <p>• Abakiriya bose bazasibwa</p>
-              <p>• Ibyagurishijwe byose bizasibwa</p>
+              <p>• Sales (amafaranga yinjijwe) azasubira kuri 0</p>
               <p>• Capital izasubira kuri 0</p>
+              <p>• Abakiriya bazagaruka mu badeni (unpaid)</p>
             </div>
 
             <div className="flex gap-3 pt-2">

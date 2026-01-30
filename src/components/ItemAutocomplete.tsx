@@ -29,9 +29,13 @@ export const ItemAutocomplete = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (value.length >= 1) {
+    // Get the last word being typed (after last comma or the whole string)
+    const parts = value.split(",");
+    const currentWord = parts[parts.length - 1].trim().toLowerCase();
+    
+    if (currentWord.length >= 1) {
       const filtered = suggestions.filter((item) =>
-        item.item_name.toLowerCase().includes(value.toLowerCase())
+        item.item_name.toLowerCase().includes(currentWord)
       );
       setFilteredSuggestions(filtered.slice(0, 5));
       setIsOpen(filtered.length > 0);
@@ -53,15 +57,13 @@ export const ItemAutocomplete = ({
   }, []);
 
   const handleSelect = (item: ItemAutocompleteSuggestion) => {
-    // Append to existing items if there's already content
-    const currentValue = value.trim();
-    if (currentValue && !currentValue.endsWith(",")) {
-      onChange(currentValue + ", " + item.item_name);
-    } else if (currentValue.endsWith(",")) {
-      onChange(currentValue + " " + item.item_name);
-    } else {
-      onChange(item.item_name);
-    }
+    // Split by comma to get all parts
+    const parts = value.split(",");
+    // Replace the last part (current word being typed) with the selected item
+    parts[parts.length - 1] = " " + item.item_name;
+    // Join back, trim the first space if needed
+    const newValue = parts.map((p, i) => i === 0 ? p.trim() : p).join(",");
+    onChange(newValue.trim());
     onSelect?.(item.item_name);
     setIsOpen(false);
   };

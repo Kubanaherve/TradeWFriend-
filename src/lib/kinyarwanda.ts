@@ -12,7 +12,10 @@ export const labels = {
   addDebt: "Ongeraho Ideni",
   debtList: "Urutonde rw'Abafite Ideni",
   salesTracking: "Gukurikirana Ibyagurishijwe",
-  sideExpenses: "Amafaranga Yinjira n'Asohoka",
+  inventoryTitle: "Ibyo Yazanye",
+  inventorySubtitle: "Ibintu byose yaguze i Benin",
+  addInventoryItem: "Ongeraho Ikintu",
+  noInventory: "Nta kintu kihari",
   totalUnpaid: "Amafaranga yose atarishyurwa",
   
   // Customer & Debt Fields

@@ -2,20 +2,22 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { labels, smsTemplates, formatCurrency } from "@/lib/kinyarwanda";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Save, X, Phone, MessageCircle } from "lucide-react";
 import { CustomerAutocomplete } from "@/components/CustomerAutocomplete";
+import { ItemAutocomplete } from "@/components/ItemAutocomplete";
 import { useCustomerSuggestions } from "@/hooks/useCustomerSuggestions";
+import { useInventorySuggestions } from "@/hooks/useInventorySuggestions";
 
 const AddDebtPage = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [showSmsPreview, setShowSmsPreview] = useState(false);
   const { customers } = useCustomerSuggestions();
+  const { items: inventoryItems } = useInventorySuggestions();
   
   const [form, setForm] = useState({
     name: "",
@@ -193,17 +195,20 @@ const AddDebtPage = () => {
             />
           </div>
 
-          {/* Items */}
+          {/* Items with Autocomplete */}
           <div>
             <label className="block text-xs font-medium mb-1.5">
               {labels.itemsTaken} *
             </label>
-            <Textarea
+            <ItemAutocomplete
               value={form.items}
-              onChange={(e) => setForm({ ...form, items: e.target.value })}
-              placeholder="Imiringa, impeta, ..."
-              className="bg-white/50 input-glow min-h-[80px]"
+              onChange={(value) => setForm({ ...form, items: value })}
+              suggestions={inventoryItems}
+              placeholder="Impeta, Isaha, ..."
             />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Andika cyangwa uhitemo mu byo yazanye
+            </p>
           </div>
 
           {/* Amount */}

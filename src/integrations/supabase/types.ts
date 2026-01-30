@@ -74,6 +74,36 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_items: {
+        Row: {
+          cost_price: number
+          created_at: string
+          date_bought: string
+          id: string
+          item_name: string
+          notes: string | null
+          quantity: number
+        }
+        Insert: {
+          cost_price?: number
+          created_at?: string
+          date_bought?: string
+          id?: string
+          item_name: string
+          notes?: string | null
+          quantity?: number
+        }
+        Update: {
+          cost_price?: number
+          created_at?: string
+          date_bought?: string
+          id?: string
+          item_name?: string
+          notes?: string | null
+          quantity?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

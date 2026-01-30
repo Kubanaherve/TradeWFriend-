@@ -11,6 +11,7 @@ import {
   LogOut, 
   Gem,
   Users,
+  Package,
   Edit3,
   Save,
   X,
@@ -187,12 +188,12 @@ const DashboardPage = () => {
       description: "Kurikiranira ibigurishwa",
     },
     {
-      icon: DollarSign,
-      label: labels.sideExpenses,
-      path: "/sales",
+      icon: Package,
+      label: labels.inventoryTitle,
+      path: "/inventory",
       bgClass: "bg-gradient-to-br from-gold-light to-secondary",
       textDark: true,
-      description: "Capital, Inyungu, n'Ibisohoka",
+      description: labels.inventorySubtitle,
     },
   ];
 

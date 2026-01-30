@@ -9,6 +9,7 @@ import DashboardPage from "./pages/Dashboard";
 import AddDebtPage from "./pages/AddDebt";
 import DebtsPage from "./pages/Debts";
 import SalesPage from "./pages/Sales";
+import InventoryPage from "./pages/Inventory";
 import InstallPage from "./pages/Install";
 import NotFound from "./pages/NotFound";
 
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/add-debt" element={<AddDebtPage />} />
             <Route path="/debts" element={<DebtsPage />} />
             <Route path="/sales" element={<SalesPage />} />
+            <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/install" element={<InstallPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

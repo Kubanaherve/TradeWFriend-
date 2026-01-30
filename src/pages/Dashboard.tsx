@@ -48,9 +48,11 @@ const DashboardPage = () => {
   });
   const [showCapitalModal, setShowCapitalModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [showFactoryResetModal, setShowFactoryResetModal] = useState(false);
   const [capitalInput, setCapitalInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isFactoryResetting, setIsFactoryResetting] = useState(false);
 
   const fetchStats = async () => {
     // Get unpaid debts
@@ -158,6 +160,26 @@ const DashboardPage = () => {
       toast.error("Habaye ikosa");
     } finally {
       setIsResetting(false);
+    }
+  };
+
+  const handleFactoryReset = async () => {
+    setIsFactoryResetting(true);
+    try {
+      // Delete all data from all tables
+      await supabase.from("sales").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      await supabase.from("customers").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      await supabase.from("inventory_items").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      await supabase.from("app_settings").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
+      toast.success("Database yose yasubijwe ku ntangiriro! 🔄");
+      setShowFactoryResetModal(false);
+      fetchStats();
+    } catch (error) {
+      console.error("Factory reset error:", error);
+      toast.error("Habaye ikosa");
+    } finally {
+      setIsFactoryResetting(false);
     }
   };
 
@@ -331,8 +353,8 @@ const DashboardPage = () => {
         ))}
         </div>
 
-        {/* Reset All Button */}
-        <div className="pt-4">
+        {/* Reset Buttons */}
+        <div className="pt-4 space-y-3">
           <Button
             onClick={() => setShowResetModal(true)}
             variant="outline"
@@ -340,6 +362,15 @@ const DashboardPage = () => {
           >
             <Trash2 size={16} className="mr-2" />
             {labels.resetAll} (Restock)
+          </Button>
+          
+          <Button
+            onClick={() => setShowFactoryResetModal(true)}
+            variant="destructive"
+            className="w-full"
+          >
+            <AlertTriangle size={16} className="mr-2" />
+            Factory Reset (Siba byose)
           </Button>
         </div>
       </main>
@@ -462,6 +493,60 @@ const DashboardPage = () => {
                   <>
                     <Trash2 size={16} className="mr-1" />
                     {labels.confirm}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Factory Reset Confirmation Modal */}
+      <Dialog open={showFactoryResetModal} onOpenChange={setShowFactoryResetModal}>
+        <DialogContent className="max-w-sm mx-4 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base flex items-center gap-2 text-destructive">
+              <AlertTriangle size={20} />
+              Factory Reset - Siba Byose!
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Ibi bizasiba DATA YOSE mu database. Ntabwo uzabisubiza!
+            </p>
+            <div className="glass-card p-3 bg-destructive/10 text-sm space-y-1">
+              <p>• Abakiriya bose bazasibwa</p>
+              <p>• Sales zose zizasibwa</p>
+              <p>• Inventory yose izasibwa</p>
+              <p>• Settings zose zizasubira ku ntangiriro</p>
+            </div>
+            <p className="text-xs text-destructive font-medium">
+              ⚠️ Ntabwo ushobora gusubiza inyuma ibi!
+            </p>
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                onClick={() => setShowFactoryResetModal(false)}
+                variant="outline"
+                className="flex-1"
+                disabled={isFactoryResetting}
+              >
+                <X size={16} className="mr-1" />
+                {labels.cancel}
+              </Button>
+              <Button
+                onClick={handleFactoryReset}
+                variant="destructive"
+                className="flex-1"
+                disabled={isFactoryResetting}
+              >
+                {isFactoryResetting ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 size={16} className="mr-1" />
+                    Siba Byose
                   </>
                 )}
               </Button>

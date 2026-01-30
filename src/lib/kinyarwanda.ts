@@ -48,6 +48,7 @@ export const labels = {
   filter: "Tondeka",
   search: "Shakisha",
   ok: "Ok",
+  confirm: "Emeza",
   
   // Summary
   totalSales: "Amafaranga yose yinjijwe",

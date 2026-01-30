@@ -12,7 +12,9 @@ import {
   MessageCircle, 
   Check, 
   Search,
-  Users
+  Users,
+  Save,
+  X
 } from "lucide-react";
 import {
   Table,
@@ -22,6 +24,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Customer {
   id: string;
@@ -39,6 +47,10 @@ const DebtsPage = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [costPrice, setCostPrice] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const fetchCustomers = async () => {
     setIsLoading(true);
@@ -78,31 +90,66 @@ const DebtsPage = () => {
     window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(message)}`;
   };
 
-  const handleMarkAsPaid = async (customer: Customer) => {
+  const openPaymentModal = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setCostPrice("");
+    setShowPaymentModal(true);
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!selectedCustomer) return;
+    
+    if (!costPrice || parseFloat(costPrice) < 0) {
+      toast.error("Andika igiciro cyo kugura (cost price)");
+      return;
+    }
+
+    setIsSaving(true);
     try {
-      const { error } = await supabase
+      // 1. Mark customer as paid
+      const { error: updateError } = await supabase
         .from("customers")
         .update({ 
           is_paid: true, 
           paid_at: new Date().toISOString() 
         })
-        .eq("id", customer.id);
+        .eq("id", selectedCustomer.id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      toast.success(labels.markedAsPaid + " ✨");
+      // 2. Add to sales table for profit tracking
+      const { error: saleError } = await supabase
+        .from("sales")
+        .insert({
+          item_name: selectedCustomer.items,
+          cost_price: parseFloat(costPrice),
+          sale_price: selectedCustomer.amount,
+          quantity: 1,
+          date_sold: new Date().toISOString().split('T')[0],
+        });
+
+      if (saleError) throw saleError;
+
+      const profit = selectedCustomer.amount - parseFloat(costPrice);
+      toast.success(`${labels.markedAsPaid} ✨ Inyungu: ${formatCurrency(profit)}`);
+      
+      setShowPaymentModal(false);
+      setSelectedCustomer(null);
+      setCostPrice("");
       
       // Offer to send thank you SMS
-      if (customer.phone) {
+      if (selectedCustomer.phone) {
         const message = smsTemplates.cashAcknowledgment();
-        const cleanPhone = customer.phone.replace(/\s/g, '');
+        const cleanPhone = selectedCustomer.phone.replace(/\s/g, '');
         window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(message)}`;
       }
       
       fetchCustomers();
     } catch (error) {
-      console.error("Update error:", error);
+      console.error("Payment error:", error);
       toast.error("Habaye ikosa");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -248,7 +295,7 @@ const DebtsPage = () => {
                           </>
                         )}
                         <Button
-                          onClick={() => handleMarkAsPaid(customer)}
+                          onClick={() => openPaymentModal(customer)}
                           size="icon"
                           className="h-8 w-8 btn-gold"
                           title={labels.markAsPaid}
@@ -264,6 +311,85 @@ const DebtsPage = () => {
           </div>
         )}
       </main>
+
+      {/* Payment Confirmation Modal */}
+      <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
+        <DialogContent className="max-w-sm mx-4 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base">{labels.markAsPaid}</DialogTitle>
+          </DialogHeader>
+
+          {selectedCustomer && (
+            <div className="space-y-4">
+              {/* Customer Info */}
+              <div className="glass-card p-3 bg-muted/30">
+                <p className="font-semibold text-sm">{selectedCustomer.name}</p>
+                <p className="text-xs text-muted-foreground mt-1">{selectedCustomer.items}</p>
+                <p className="text-lg font-bold text-primary mt-2">
+                  {formatCurrency(selectedCustomer.amount)}
+                </p>
+              </div>
+
+              {/* Cost Price Input */}
+              <div>
+                <label className="block text-xs font-medium mb-1.5">
+                  {labels.costPrice} (Igiciro cyo kugura) *
+                </label>
+                <Input
+                  type="number"
+                  value={costPrice}
+                  onChange={(e) => setCostPrice(e.target.value)}
+                  placeholder="0"
+                  className="bg-muted/50 input-glow text-lg"
+                  inputMode="numeric"
+                  autoFocus
+                />
+              </div>
+
+              {/* Profit Preview */}
+              {costPrice && (
+                <div className={`text-center py-3 rounded-lg ${
+                  selectedCustomer.amount - parseFloat(costPrice) >= 0 
+                    ? 'bg-green-50 text-green-600' 
+                    : 'bg-red-50 text-destructive'
+                }`}>
+                  <p className="text-xs">Inyungu (Profit):</p>
+                  <p className="text-xl font-bold">
+                    {formatCurrency(selectedCustomer.amount - parseFloat(costPrice || "0"))}
+                  </p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  onClick={() => setShowPaymentModal(false)}
+                  variant="outline"
+                  className="flex-1"
+                  disabled={isSaving}
+                >
+                  <X size={16} className="mr-1" />
+                  {labels.cancel}
+                </Button>
+                <Button
+                  onClick={handleConfirmPayment}
+                  className="flex-1 btn-gold"
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <div className="w-4 h-4 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Save size={16} className="mr-1" />
+                      {labels.confirm}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

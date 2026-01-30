@@ -13,7 +13,8 @@ import {
   Users,
   Edit3,
   Save,
-  X
+  X,
+  Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,13 +177,22 @@ const DashboardPage = () => {
               </p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
-          >
-            <LogOut size={16} />
-            {labels.logout}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate("/install")}
+              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+              title="Install App"
+            >
+              <Download size={16} />
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+            >
+              <LogOut size={16} />
+              {labels.logout}
+            </button>
+          </div>
         </div>
       </header>
 

@@ -1,47 +1,81 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
 
-const AUTH_KEY = 'jeanne_jewelry_auth';
-
-interface AuthState {
-  isAuthenticated: boolean;
-  user: 'mom' | 'dad' | null;
+interface Profile {
+  id: string;
+  phone: string;
+  display_name: string | null;
 }
 
-interface AuthContextType extends AuthState {
-  login: (user: 'mom' | 'dad') => void;
-  logout: () => void;
+interface AuthContextType {
+  isAuthenticated: boolean;
+  user: User | null;
+  profile: Profile | null;
+  isLoading: boolean;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authState, setAuthState] = useState<AuthState>(() => {
-    const stored = sessionStorage.getItem(AUTH_KEY);
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return { isAuthenticated: false, user: null };
-      }
-    }
-    return { isAuthenticated: false, user: null };
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchProfile = async (userId: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, phone, display_name')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    setProfile(data);
+  };
 
   useEffect(() => {
-    sessionStorage.setItem(AUTH_KEY, JSON.stringify(authState));
-  }, [authState]);
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Use setTimeout to avoid potential deadlock with Supabase client
+          setTimeout(() => fetchProfile(session.user.id), 0);
+        } else {
+          setProfile(null);
+        }
+        
+        setIsLoading(false);
+      }
+    );
 
-  const login = useCallback((user: 'mom' | 'dad') => {
-    setAuthState({ isAuthenticated: true, user });
+    // THEN check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      }
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const logout = useCallback(() => {
-    setAuthState({ isAuthenticated: false, user: null });
-    sessionStorage.removeItem(AUTH_KEY);
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setProfile(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...authState, login, logout }}>
+    <AuthContext.Provider value={{ 
+      isAuthenticated: !!user, 
+      user, 
+      profile,
+      isLoading,
+      logout 
+    }}>
       {children}
     </AuthContext.Provider>
   );

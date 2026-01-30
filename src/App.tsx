@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
-import LoginPage from "./pages/Login";
+import AuthPage from "./pages/Auth";
 import DashboardPage from "./pages/Dashboard";
 import AddDebtPage from "./pages/AddDebt";
 import DebtsPage from "./pages/Debts";
@@ -22,7 +22,7 @@ const App = () => (
         <Sonner position="top-center" richColors />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<LoginPage />} />
+            <Route path="/" element={<AuthPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/add-debt" element={<AddDebtPage />} />
             <Route path="/debts" element={<DebtsPage />} />

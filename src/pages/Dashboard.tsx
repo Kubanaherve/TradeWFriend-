@@ -38,7 +38,7 @@ interface DashboardStats {
 
 const DashboardPage = () => {
   const navigate = useNavigate();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { profile, logout, isAuthenticated, isLoading: authLoading } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalUnpaid: 0,
     totalCustomers: 0,
@@ -82,12 +82,14 @@ const DashboardPage = () => {
   };
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!authLoading && !isAuthenticated) {
       navigate("/");
       return;
     }
-    fetchStats();
-  }, [isAuthenticated, navigate]);
+    if (isAuthenticated) {
+      fetchStats();
+    }
+  }, [isAuthenticated, authLoading, navigate]);
 
   const handleSaveCapital = async () => {
     if (!capitalInput || parseFloat(capitalInput) < 0) {
@@ -126,8 +128,8 @@ const DashboardPage = () => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate("/");
   };
 
@@ -204,7 +206,7 @@ const DashboardPage = () => {
             <div>
               <h1 className="text-sm font-bold text-foreground">{labels.appName}</h1>
               <p className="text-[10px] text-muted-foreground">
-                {labels.welcome}, {user === 'mom' ? 'Mama' : 'Papa'}! 💎
+                {labels.welcome}, {profile?.display_name || 'User'}! 💎
               </p>
             </div>
           </div>

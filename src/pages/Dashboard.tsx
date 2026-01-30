@@ -14,7 +14,9 @@ import {
   Edit3,
   Save,
   X,
-  Download
+  Download,
+  Trash2,
+  AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,8 +46,10 @@ const DashboardPage = () => {
     totalCapital: 0,
   });
   const [showCapitalModal, setShowCapitalModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
   const [capitalInput, setCapitalInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   const fetchStats = async () => {
     // Get unpaid debts
@@ -125,6 +129,30 @@ const DashboardPage = () => {
   const handleLogout = () => {
     logout();
     navigate("/");
+  };
+
+  const handleResetAll = async () => {
+    setIsResetting(true);
+    try {
+      // Delete all customers
+      await supabase.from("customers").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      // Delete all sales
+      await supabase.from("sales").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      // Reset capital
+      await supabase
+        .from("app_settings")
+        .update({ setting_value: "0" })
+        .eq("setting_key", "total_capital");
+
+      toast.success(labels.resetSuccess + " ✨");
+      setShowResetModal(false);
+      fetchStats();
+    } catch (error) {
+      console.error("Reset error:", error);
+      toast.error("Habaye ikosa");
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   // Calculate profit = Total Sales - Capital
@@ -296,6 +324,18 @@ const DashboardPage = () => {
             </button>
         ))}
         </div>
+
+        {/* Reset All Button */}
+        <div className="pt-4">
+          <Button
+            onClick={() => setShowResetModal(true)}
+            variant="outline"
+            className="w-full border-destructive/50 text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 size={16} className="mr-2" />
+            {labels.resetAll} (Restock)
+          </Button>
+        </div>
       </main>
 
       {/* Capital Edit Modal */}
@@ -366,6 +406,56 @@ const DashboardPage = () => {
                   <>
                     <Save size={16} className="mr-1" />
                     {labels.save}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset All Confirmation Modal */}
+      <Dialog open={showResetModal} onOpenChange={setShowResetModal}>
+        <DialogContent className="max-w-sm mx-4 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base flex items-center gap-2 text-destructive">
+              <AlertTriangle size={20} />
+              {labels.resetAll}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {labels.confirmResetAll}
+            </p>
+            <div className="glass-card p-3 bg-destructive/10 text-sm space-y-1">
+              <p>• Abakiriya bose bazasibwa</p>
+              <p>• Ibyagurishijwe byose bizasibwa</p>
+              <p>• Capital izasubira kuri 0</p>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                onClick={() => setShowResetModal(false)}
+                variant="outline"
+                className="flex-1"
+                disabled={isResetting}
+              >
+                <X size={16} className="mr-1" />
+                {labels.cancel}
+              </Button>
+              <Button
+                onClick={handleResetAll}
+                variant="destructive"
+                className="flex-1"
+                disabled={isResetting}
+              >
+                {isResetting ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 size={16} className="mr-1" />
+                    {labels.confirm}
                   </>
                 )}
               </Button>

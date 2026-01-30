@@ -91,7 +91,8 @@ const DebtsPage = () => {
       cleanPhone = '250' + cleanPhone;
     }
     cleanPhone = cleanPhone.replace('+', '');
-    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
+    // Use location.href for better compatibility (works in iframes and mobile)
+    window.location.href = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 
   const handleMarkAsPaid = async (customer: Customer) => {

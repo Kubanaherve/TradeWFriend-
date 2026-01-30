@@ -87,8 +87,8 @@ const AddDebtPage = () => {
       cleanPhone = '250' + cleanPhone;
     }
     cleanPhone = cleanPhone.replace('+', '');
-    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
-    setTimeout(() => navigate("/debts"), 500);
+    // Use location.href for better compatibility
+    window.location.href = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 
   const handleSkipSms = () => {

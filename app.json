@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "06d3613d-dc94-4196-af52-c5ee6a5aa3a5"
+      }
+    },
+    "android": {
+      "package": "com.jeannefriend.jewelry"
+    },
+    "ios": {
+      "bundleIdentifier": "com.jeannefriend.jewelry",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

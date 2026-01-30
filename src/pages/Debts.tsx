@@ -12,7 +12,8 @@ import {
   MessageCircle, 
   Check, 
   Search,
-  Users
+  Users,
+  Trash2
 } from "lucide-react";
 import {
   Table,
@@ -108,17 +109,28 @@ const DebtsPage = () => {
       if (error) throw error;
 
       toast.success(labels.markedAsPaid + " ✨");
-      
-      // Offer to send thank you SMS
-      if (customer.phone) {
-        const message = smsTemplates.cashAcknowledgment();
-        const cleanPhone = customer.phone.replace(/\s/g, '');
-        window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(message)}`;
-      }
-      
       fetchCustomers();
     } catch (error) {
       console.error("Update error:", error);
+      toast.error("Habaye ikosa");
+    }
+  };
+
+  const handleDelete = async (customer: Customer) => {
+    if (!confirm(`${labels.confirmDelete} ${customer.name}?`)) return;
+    
+    try {
+      const { error } = await supabase
+        .from("customers")
+        .delete()
+        .eq("id", customer.id);
+
+      if (error) throw error;
+
+      toast.success("Byasibwe neza");
+      fetchCustomers();
+    } catch (error) {
+      console.error("Delete error:", error);
       toast.error("Habaye ikosa");
     }
   };
@@ -282,6 +294,15 @@ const DebtsPage = () => {
                           title={labels.markAsPaid}
                         >
                           <Check size={14} />
+                        </Button>
+                        <Button
+                          onClick={() => handleDelete(customer)}
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          title={labels.delete}
+                        >
+                          <Trash2 size={14} />
                         </Button>
                       </div>
                     </TableCell>

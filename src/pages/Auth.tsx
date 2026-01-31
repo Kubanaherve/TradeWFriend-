@@ -5,8 +5,17 @@ import { Input } from "@/components/ui/input";
 import { labels } from "@/lib/kinyarwanda";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Gem, Phone, Lock, UserPlus, LogIn } from "lucide-react";
+import { Gem, Phone, Lock, UserPlus, LogIn, RefreshCw } from "lucide-react";
+import { PinDialPad } from "@/components/PinDialPad";
 import logo from "@/assets/logo.png";
+
+// Local storage key for remembered device
+const DEVICE_STORAGE_KEY = "jfj_remembered_device";
+
+interface RememberedDevice {
+  phone: string;
+  displayName: string;
+}
 
 const AuthPage = () => {
   const navigate = useNavigate();
@@ -16,8 +25,24 @@ const AuthPage = () => {
   const [displayName, setDisplayName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  
+  // Remembered device state
+  const [rememberedDevice, setRememberedDevice] = useState<RememberedDevice | null>(null);
+  const [showPinPad, setShowPinPad] = useState(false);
 
   useEffect(() => {
+    // Check for remembered device
+    const stored = localStorage.getItem(DEVICE_STORAGE_KEY);
+    if (stored) {
+      try {
+        const device = JSON.parse(stored) as RememberedDevice;
+        setRememberedDevice(device);
+        setShowPinPad(true);
+      } catch {
+        localStorage.removeItem(DEVICE_STORAGE_KEY);
+      }
+    }
+
     // Check if user is already logged in
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -40,9 +65,46 @@ const AuthPage = () => {
   }, [navigate]);
 
   const formatPhoneToEmail = (phoneNumber: string): string => {
-    // Convert phone to a fake email for Supabase auth
     const cleanPhone = phoneNumber.replace(/\D/g, '');
     return `${cleanPhone}@phone.local`;
+  };
+
+  const rememberDevice = (phoneNum: string, name: string) => {
+    const device: RememberedDevice = { phone: phoneNum, displayName: name };
+    localStorage.setItem(DEVICE_STORAGE_KEY, JSON.stringify(device));
+  };
+
+  const forgetDevice = () => {
+    localStorage.removeItem(DEVICE_STORAGE_KEY);
+    setRememberedDevice(null);
+    setShowPinPad(false);
+    setPhone("");
+    setPin("");
+  };
+
+  const handlePinLogin = async (enteredPin: string) => {
+    if (!rememberedDevice) return;
+
+    setIsLoading(true);
+    try {
+      const email = formatPhoneToEmail(rememberedDevice.phone);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password: enteredPin,
+      });
+
+      if (error) {
+        toast.error("PIN sibyo, ongera ugerageze");
+        setIsLoading(false);
+        return;
+      }
+
+      toast.success("Murakaza neza! 💎");
+    } catch (error: any) {
+      console.error("Login error:", error);
+      toast.error("Habaye ikosa");
+      setIsLoading(false);
+    }
   };
 
   const handleLogin = async () => {
@@ -59,7 +121,7 @@ const AuthPage = () => {
     setIsLoading(true);
     try {
       const email = formatPhoneToEmail(phone);
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password: pin,
       });
@@ -70,14 +132,26 @@ const AuthPage = () => {
         } else {
           toast.error(error.message);
         }
+        setIsLoading(false);
         return;
+      }
+
+      // Get profile for display name
+      if (data.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", data.user.id)
+          .maybeSingle();
+
+        // Remember this device
+        rememberDevice(phone, profile?.display_name || "User");
       }
 
       toast.success("Murakaza neza! 💎");
     } catch (error: any) {
       console.error("Login error:", error);
       toast.error("Habaye ikosa");
-    } finally {
       setIsLoading(false);
     }
   };
@@ -97,7 +171,6 @@ const AuthPage = () => {
     try {
       const email = formatPhoneToEmail(phone);
       
-      // Sign up
       const { data, error } = await supabase.auth.signUp({
         email,
         password: pin,
@@ -112,12 +185,13 @@ const AuthPage = () => {
         } else {
           toast.error(error.message);
         }
+        setIsLoading(false);
         return;
       }
 
       if (data.user) {
         // Create profile
-        const { error: profileError } = await supabase
+        await supabase
           .from("profiles")
           .insert({
             user_id: data.user.id,
@@ -125,16 +199,14 @@ const AuthPage = () => {
             display_name: displayName,
           });
 
-        if (profileError) {
-          console.error("Profile error:", profileError);
-        }
+        // Remember this device
+        rememberDevice(phone, displayName);
 
         toast.success("Konti yawe yaremewe! 🎉");
       }
     } catch (error: any) {
       console.error("Signup error:", error);
       toast.error("Habaye ikosa");
-    } finally {
       setIsLoading(false);
     }
   };
@@ -147,6 +219,41 @@ const AuthPage = () => {
     );
   }
 
+  // PIN Dial Pad Screen for remembered device
+  if (showPinPad && rememberedDevice) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary via-navy-light to-primary flex flex-col items-center justify-center p-6">
+        {/* Logo */}
+        <div className="text-center mb-8 animate-fade-in">
+          <div className="w-20 h-20 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center mx-auto mb-4 shadow-premium">
+            <img src={logo} alt="Logo" className="w-14 h-14 object-contain" />
+          </div>
+          <h1 className="text-xl font-bold text-white mb-1">{labels.appName}</h1>
+        </div>
+
+        {/* PIN Dial Pad */}
+        <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
+          <PinDialPad
+            onComplete={handlePinLogin}
+            isLoading={isLoading}
+            displayName={rememberedDevice.displayName}
+          />
+        </div>
+
+        {/* Switch Account Button */}
+        <button
+          onClick={forgetDevice}
+          className="mt-8 flex items-center gap-2 text-white/50 text-sm hover:text-white/70 transition-colors animate-fade-in"
+          style={{ animationDelay: '0.2s' }}
+        >
+          <RefreshCw size={14} />
+          Hindura konti
+        </button>
+      </div>
+    );
+  }
+
+  // Full Login/Signup Form
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-navy-light to-primary flex flex-col items-center justify-center p-6">
       {/* Logo & Title */}

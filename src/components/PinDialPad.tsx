@@ -6,9 +6,10 @@ interface PinDialPadProps {
   onComplete: (pin: string) => void;
   isLoading?: boolean;
   displayName?: string;
+  onChangePin?: () => void;
 }
 
-export function PinDialPad({ onComplete, isLoading, displayName }: PinDialPadProps) {
+export function PinDialPad({ onComplete, isLoading, displayName, onChangePin }: PinDialPadProps) {
   const [pin, setPin] = useState("");
   const maxLength = 6;
 
@@ -17,8 +18,8 @@ export function PinDialPad({ onComplete, isLoading, displayName }: PinDialPadPro
       const newPin = pin + digit;
       setPin(newPin);
       
-      // Auto-submit when 4+ digits entered
-      if (newPin.length >= 4) {
+      // Auto-submit when 5+ digits entered
+      if (newPin.length >= 5) {
         // Small delay to show the last dot
         setTimeout(() => onComplete(newPin), 150);
       }
@@ -102,8 +103,18 @@ export function PinDialPad({ onComplete, isLoading, displayName }: PinDialPadPro
 
       {/* Hint */}
       <p className="text-white/40 text-xs mt-6">
-        Injiza PIN yawe (imibare 4-6)
+        Injiza PIN yawe (imibare 5-6)
       </p>
+
+      {/* Change PIN button */}
+      {onChangePin && (
+        <button
+          onClick={onChangePin}
+          className="mt-4 text-secondary/80 text-sm hover:text-secondary transition-colors underline underline-offset-2"
+        >
+          Hindura PIN
+        </button>
+      )}
     </div>
   );
 }

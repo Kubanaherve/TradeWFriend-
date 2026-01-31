@@ -149,8 +149,8 @@ const AuthPage = () => {
       return;
     }
 
-    if (pin.length < 4) {
-      toast.error("PIN igomba kuba nibura imibare 4");
+    if (pin.length < 5) {
+      toast.error("PIN igomba kuba nibura imibare 5");
       return;
     }
 
@@ -198,8 +198,8 @@ const AuthPage = () => {
       return;
     }
 
-    if (pin.length < 4) {
-      toast.error("PIN igomba kuba nibura imibare 4");
+    if (pin.length < 5) {
+      toast.error("PIN igomba kuba nibura imibare 5");
       return;
     }
 
@@ -273,6 +273,13 @@ const AuthPage = () => {
             onComplete={handlePinLogin}
             isLoading={isLoading}
             displayName={selectedAccount.displayName}
+            onChangePin={() => {
+              setSelectedAccount(null);
+              setShowFullForm(true);
+              setShowAccountPicker(false);
+              setPhone(selectedAccount.phone);
+              setIsLogin(true);
+            }}
           />
         </div>
 
@@ -437,7 +444,7 @@ const AuthPage = () => {
           <div>
             <label className="block text-xs font-medium mb-1.5 text-muted-foreground">
               <Lock size={12} className="inline mr-1" />
-              PIN (Imibare 4+)
+              PIN (Imibare 5+)
             </label>
             <Input
               type="password"

@@ -4,18 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { labels, formatCurrency, formatDate } from "@/lib/kinyarwanda";
 import { supabase } from "@/integrations/supabase/client";
+
 import { toast } from "sonner";
+
 import { 
   ArrowLeft, 
-  DollarSign,
-  Calendar,
-  Award,
-  BarChart3,
-  ChevronLeft,
-  ChevronRight,
-  Wallet,
-  Save
+  DollarSign, 
+  Calendar, 
+  Award, 
+  BarChart3, 
+  ChevronLeft, 
+  ChevronRight, 
+  Wallet, 
+  Save 
 } from "lucide-react";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Sale {
@@ -48,7 +51,7 @@ const SalesPage = () => {
 
   const fetchData = async () => {
     setIsLoading(true);
-    
+
     // Fetch sales
     const { data: salesData, error: salesError } = await supabase
       .from("sales")
@@ -84,13 +87,12 @@ const SalesPage = () => {
     fetchData();
   }, []);
 
-  // Calculate week dates based on offset
   const weekDates = useMemo(() => {
     const today = new Date();
     const currentDay = today.getDay();
     const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - currentDay + (weekOffset * 7));
-    
+    startOfWeek.setDate(today.getDate() - currentDay + weekOffset * 7);
+
     const dates: Date[] = [];
     for (let i = 0; i < 7; i++) {
       const date = new Date(startOfWeek);
@@ -100,23 +102,18 @@ const SalesPage = () => {
     return dates;
   }, [weekOffset]);
 
-  // Filter sales for current week
   const weeklySales = useMemo(() => {
-    const startDate = weekDates[0].toISOString().split('T')[0];
-    const endDate = weekDates[6].toISOString().split('T')[0];
-    
-    return sales.filter(sale => {
-      return sale.date_sold >= startDate && sale.date_sold <= endDate;
-    });
+    const startDate = weekDates[0].toISOString().split("T")[0];
+    const endDate = weekDates[6].toISOString().split("T")[0];
+    return sales.filter(sale => sale.date_sold >= startDate && sale.date_sold <= endDate);
   }, [sales, weekDates]);
 
-  // Calculate daily summaries
   const dailySummaries = useMemo(() => {
     return weekDates.map((date, index) => {
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = date.toISOString().split("T")[0];
       const daySales = weeklySales.filter(s => s.date_sold === dateStr);
-      const revenue = daySales.reduce((sum, s) => sum + (Number(s.sale_price) * s.quantity), 0);
-      
+      const revenue = daySales.reduce((sum, s) => sum + s.sale_price * s.quantity, 0);
+
       return {
         date: dateStr,
         dayName: DAYS_KIN[index],
@@ -127,18 +124,16 @@ const SalesPage = () => {
     });
   }, [weeklySales, weekDates, balances]);
 
-  // Find highest sale day
   const highestDay = useMemo(() => {
     if (dailySummaries.every(d => d.revenue === 0)) return null;
-    return dailySummaries.reduce((max, day) => day.revenue > max.revenue ? day : max, dailySummaries[0]);
+    return dailySummaries.reduce((max, day) => (day.revenue > max.revenue ? day : max), dailySummaries[0]);
   }, [dailySummaries]);
 
-  // Weekly totals
   const weeklyTotals = useMemo(() => {
-    const revenue = weeklySales.reduce((sum, s) => sum + (Number(s.sale_price) * s.quantity), 0);
+    const revenue = weeklySales.reduce((sum, s) => sum + s.sale_price * s.quantity, 0);
     const totalBalance = dailySummaries.reduce((sum, d) => sum + (d.balance || 0), 0);
     const daysWithBalance = dailySummaries.filter(d => d.balance !== null).length;
-    
+
     return {
       revenue,
       totalBalance,
@@ -147,7 +142,6 @@ const SalesPage = () => {
     };
   }, [weeklySales, dailySummaries]);
 
-  // Max revenue for chart scaling
   const maxRevenue = useMemo(() => {
     return Math.max(...dailySummaries.map(d => d.revenue), 1);
   }, [dailySummaries]);
@@ -166,8 +160,7 @@ const SalesPage = () => {
     }
 
     const key = `balance_${date}`;
-    
-    // Check if exists
+
     const { data: existing } = await supabase
       .from("app_settings")
       .select("id")
@@ -214,12 +207,7 @@ const SalesPage = () => {
             <h1 className="text-base font-bold">Amafaranga y'icyumweru</h1>
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              onClick={() => setWeekOffset(w => w - 1)}
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8"
-            >
+            <Button onClick={() => setWeekOffset(w => w - 1)} size="icon" variant="ghost" className="h-8 w-8">
               <ChevronLeft size={18} />
             </Button>
             <Button
@@ -235,6 +223,7 @@ const SalesPage = () => {
         </div>
       </header>
 
+      {/* Main content */}
       <main className="p-4 max-w-lg mx-auto space-y-4">
         {/* Week Label */}
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -242,6 +231,7 @@ const SalesPage = () => {
           <span>{weekLabel}</span>
         </div>
 
+        {/* Loading / content */}
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
@@ -250,6 +240,7 @@ const SalesPage = () => {
           <>
             {/* Weekly Summary Cards */}
             <div className="grid grid-cols-2 gap-3">
+              {/* Revenue card */}
               <Card className="glass-card animate-fade-in">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -258,16 +249,13 @@ const SalesPage = () => {
                     </div>
                     <span className="text-[10px] text-muted-foreground">Amafaranga yinjiye</span>
                   </div>
-                  <p className="text-lg font-bold text-foreground">
-                    {formatCurrency(weeklyTotals.revenue)}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    {weeklyTotals.salesCount} ibyagurishijwe
-                  </p>
+                  <p className="text-lg font-bold text-foreground">{formatCurrency(weeklyTotals.revenue)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">{weeklyTotals.salesCount} ibyagurishijwe</p>
                 </CardContent>
               </Card>
 
-              <Card className="glass-card animate-fade-in" style={{ animationDelay: '0.1s' }}>
+              {/* Balance card */}
+              <Card className="glass-card animate-fade-in" style={{ animationDelay: "0.1s" }}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
@@ -275,19 +263,15 @@ const SalesPage = () => {
                     </div>
                     <span className="text-[10px] text-muted-foreground">Amafaranga asigaye</span>
                   </div>
-                  <p className="text-lg font-bold text-green-600">
-                    {formatCurrency(weeklyTotals.totalBalance)}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    {weeklyTotals.daysWithBalance} iminsi yanditswe
-                  </p>
+                  <p className="text-lg font-bold text-green-600">{formatCurrency(weeklyTotals.totalBalance)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">{weeklyTotals.daysWithBalance} iminsi yanditswe</p>
                 </CardContent>
               </Card>
             </div>
 
             {/* Highest Day Card */}
             {highestDay && highestDay.revenue > 0 && (
-              <Card className="glass-card border-2 border-amber-500/30 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+              <Card className="glass-card border-2 border-amber-500/30 animate-fade-in" style={{ animationDelay: "0.2s" }}>
                 <CardHeader className="pb-2 pt-4 px-4">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <Award size={16} className="text-amber-500" />
@@ -307,7 +291,7 @@ const SalesPage = () => {
             )}
 
             {/* Weekly Chart */}
-            <Card className="glass-card animate-fade-in" style={{ animationDelay: '0.3s' }}>
+            <Card className="glass-card animate-fade-in" style={{ animationDelay: "0.3s" }}>
               <CardHeader className="pb-2 pt-4 px-4">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <BarChart3 size={16} className="text-primary" />
@@ -319,8 +303,8 @@ const SalesPage = () => {
                   {dailySummaries.map((day, index) => {
                     const height = maxRevenue > 0 ? (day.revenue / maxRevenue) * 100 : 0;
                     const isHighest = highestDay && day.date === highestDay.date && day.revenue > 0;
-                    const isToday = day.date === new Date().toISOString().split('T')[0];
-                    
+                    const isToday = day.date === new Date().toISOString().split("T")[0];
+
                     return (
                       <div key={day.date} className="flex flex-col items-center flex-1 gap-1">
                         <div className="w-full flex flex-col items-center justify-end h-24">
@@ -329,15 +313,14 @@ const SalesPage = () => {
                               {formatCurrency(day.revenue).replace(" RWF", "")}
                             </span>
                           )}
-                          <div 
+                          <div
                             className={`w-full rounded-t-md transition-all duration-300 ${
-                              isHighest ? 'bg-amber-500' : 
-                              day.revenue > 0 ? 'bg-primary' : 'bg-muted'
+                              isHighest ? "bg-amber-500" : day.revenue > 0 ? "bg-primary" : "bg-muted"
                             }`}
                             style={{ height: `${Math.max(height, day.revenue > 0 ? 10 : 4)}%` }}
                           />
                         </div>
-                        <span className={`text-[10px] ${isToday ? 'font-bold text-primary' : 'text-muted-foreground'}`}>
+                        <span className={`text-[10px] ${isToday ? "font-bold text-primary" : "text-muted-foreground"}`}>
                           {DAYS_SHORT[index]}
                         </span>
                       </div>
@@ -352,14 +335,10 @@ const SalesPage = () => {
               <h3 className="text-xs font-semibold text-muted-foreground px-1">Urutonde rw'iminsi - Andika amafaranga asigaye</h3>
               {dailySummaries.map((day, index) => {
                 const isEditing = editingBalance === day.date;
-                const isToday = day.date === new Date().toISOString().split('T')[0];
-                
+                const isToday = day.date === new Date().toISOString().split("T")[0];
+
                 return (
-                  <div
-                    key={day.date}
-                    className={`glass-card p-3 animate-fade-in ${isToday ? 'border-primary/50' : ''}`}
-                    style={{ animationDelay: `${0.4 + index * 0.05}s` }}
-                  >
+                  <div key={day.date} className={`glass-card p-3 animate-fade-in ${isToday ? "border-primary/50" : ""}`} style={{ animationDelay: `${0.4 + index * 0.05}s` }}>
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <p className="font-medium text-sm">{day.dayName}</p>
@@ -370,7 +349,7 @@ const SalesPage = () => {
                         <p className="text-[10px] text-muted-foreground">yinjiye</p>
                       </div>
                     </div>
-                    
+
                     {/* Balance Entry */}
                     <div className="flex items-center gap-2 pt-2 border-t border-border/50">
                       <Wallet size={14} className="text-green-600" />
@@ -379,16 +358,12 @@ const SalesPage = () => {
                           <Input
                             type="number"
                             value={balanceInput}
-                            onChange={(e) => setBalanceInput(e.target.value)}
+                            onChange={e => setBalanceInput(e.target.value)}
                             placeholder="Amafaranga asigaye..."
                             className="h-8 text-sm flex-1"
                             autoFocus
                           />
-                          <Button
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => saveBalance(day.date)}
-                          >
+                          <Button size="icon" className="h-8 w-8" onClick={() => saveBalance(day.date)}>
                             <Save size={14} />
                           </Button>
                         </div>
@@ -416,9 +391,7 @@ const SalesPage = () => {
 
             {weeklySales.length === 0 && (
               <div className="text-center py-4">
-                <p className="text-muted-foreground text-sm">
-                  Nta byagurishijwe muri iki cyumweru
-                </p>
+                <p className="text-muted-foreground text-sm">Nta byagurishijwe muri iki cyumweru</p>
               </div>
             )}
           </>

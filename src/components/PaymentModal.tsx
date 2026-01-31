@@ -29,7 +29,7 @@ const PaymentModal = ({
 }: PaymentModalProps) => {
   const [paymentAmount, setPaymentAmount] = useState<string>(totalAmount.toString());
   const [thankYouMessage, setThankYouMessage] = useState<string>(
-    `Murakoze cyane ${customerName}! Twishimiye kubafasha.`
+    `Thank you very much!! Mugire ibihe byiza.`
   );
   const [error, setError] = useState<string>("");
 

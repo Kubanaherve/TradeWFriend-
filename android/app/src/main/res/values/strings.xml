@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">jeanneFriend-Jewerlies</string>
+    <string name="title_activity_main">jeanneFriend-Jewerlies</string>
+    <string name="package_name">com.jeannefriend.jewerlies</string>
+    <string name="custom_url_scheme">com.jeannefriend.jewerlies</string>
+</resources>

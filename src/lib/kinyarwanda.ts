@@ -80,11 +80,13 @@ export const labels = {
 export const smsTemplates = {
   // Immediate SMS after saving debt
   debtConfirmation: (items: string, amount: string) => 
-    `Muraho mufashe ${items} amafaranga muzishyura ni ${amount} FRW. MERCI BEAUCOUP CHER CLIENT`,
+    `Muraho mufashe ${items} amafaranga muzishyura ni ${amount} FRW. Murakoze cyane!`,
   
   // Optional reminder SMS
   debtReminder: (items: string, amount: string) => 
-    `Muraho, mwampaye kuri ${items} amafaranga muzishyura ni ${amount} FRW`,
+    ` Muraho neza! Wampaye kuri cash nshuti. Merci!!
+  
+  (${items}) amafaranga totale ni: (${amount} FRW)`,
   
   // Cash acknowledgment
   cashAcknowledgment: () => 

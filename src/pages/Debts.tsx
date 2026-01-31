@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { labels, formatCurrency, formatDate, smsTemplates } from "@/lib/kinyarwanda";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import PaymentModal from "@/components/PaymentModal";
 import { 
   ArrowLeft, 
   Plus, 
@@ -40,6 +41,8 @@ const DebtsPage = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   const fetchCustomers = async () => {
     setIsLoading(true);
@@ -96,22 +99,52 @@ const DebtsPage = () => {
     window.location.href = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 
-  const handleMarkAsPaid = async (customer: Customer) => {
+  const openPaymentModal = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setPaymentModalOpen(true);
+  };
+
+  const handlePayment = async (paymentAmount: number, thankYouMessage: string) => {
+    if (!selectedCustomer) return;
+
     try {
-      const { error } = await supabase
-        .from("customers")
-        .update({ 
-          is_paid: true, 
-          paid_at: new Date().toISOString() 
-        })
-        .eq("id", customer.id);
+      const newAmount = selectedCustomer.amount - paymentAmount;
 
-      if (error) throw error;
+      if (newAmount <= 0) {
+        // Fully paid - mark as paid
+        const { error } = await supabase
+          .from("customers")
+          .update({ 
+            is_paid: true, 
+            paid_at: new Date().toISOString(),
+            amount: 0
+          })
+          .eq("id", selectedCustomer.id);
 
-      toast.success(labels.markedAsPaid + " ✨");
+        if (error) throw error;
+        toast.success(thankYouMessage, { duration: 5000 });
+      } else {
+        // Partial payment - update remaining amount
+        const { error } = await supabase
+          .from("customers")
+          .update({ 
+            amount: newAmount,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", selectedCustomer.id);
+
+        if (error) throw error;
+        toast.success(
+          `${thankYouMessage}\n\nAmafaranga asigaye: ${formatCurrency(newAmount)}`,
+          { duration: 5000 }
+        );
+      }
+
+      setPaymentModalOpen(false);
+      setSelectedCustomer(null);
       fetchCustomers();
     } catch (error) {
-      console.error("Update error:", error);
+      console.error("Payment error:", error);
       toast.error("Habaye ikosa");
     }
   };
@@ -288,7 +321,7 @@ const DebtsPage = () => {
                           </>
                         )}
                         <Button
-                          onClick={() => handleMarkAsPaid(customer)}
+                          onClick={() => openPaymentModal(customer)}
                           size="icon"
                           className="h-8 w-8 btn-gold"
                           title={labels.markAsPaid}
@@ -311,6 +344,20 @@ const DebtsPage = () => {
               </TableBody>
             </Table>
           </div>
+        )}
+
+        {/* Payment Modal */}
+        {selectedCustomer && (
+          <PaymentModal
+            isOpen={paymentModalOpen}
+            onClose={() => {
+              setPaymentModalOpen(false);
+              setSelectedCustomer(null);
+            }}
+            onConfirm={handlePayment}
+            customerName={selectedCustomer.name}
+            totalAmount={selectedCustomer.amount}
+          />
         )}
       </main>
     </div>

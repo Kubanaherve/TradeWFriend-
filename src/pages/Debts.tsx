@@ -104,11 +104,17 @@ const DebtsPage = () => {
     setPaymentModalOpen(true);
   };
 
+  const sendThankYouSMS = (phone: string, message: string) => {
+    const cleanPhone = phone.replace(/\s/g, '');
+    window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(message)}`;
+  };
+
   const handlePayment = async (paymentAmount: number, thankYouMessage: string) => {
     if (!selectedCustomer) return;
 
     try {
       const newAmount = selectedCustomer.amount - paymentAmount;
+      let finalMessage = thankYouMessage;
 
       if (newAmount <= 0) {
         // Fully paid - mark as paid
@@ -122,7 +128,6 @@ const DebtsPage = () => {
           .eq("id", selectedCustomer.id);
 
         if (error) throw error;
-        toast.success(thankYouMessage, { duration: 5000 });
       } else {
         // Partial payment - update remaining amount
         const { error } = await supabase
@@ -134,15 +139,22 @@ const DebtsPage = () => {
           .eq("id", selectedCustomer.id);
 
         if (error) throw error;
-        toast.success(
-          `${thankYouMessage}\n\nAmafaranga asigaye: ${formatCurrency(newAmount)}`,
-          { duration: 5000 }
-        );
+        finalMessage = `${thankYouMessage}\n\nAmafaranga asigaye: ${formatCurrency(newAmount)}`;
       }
 
+      toast.success("Byashyizweho neza! ✨");
+      
       setPaymentModalOpen(false);
+      const customerPhone = selectedCustomer.phone;
       setSelectedCustomer(null);
       fetchCustomers();
+
+      // Send SMS after updating state
+      if (customerPhone) {
+        sendThankYouSMS(customerPhone, finalMessage);
+      } else {
+        toast.info("Umukiriya nta numero afite - SMS ntiyoherejwe");
+      }
     } catch (error) {
       console.error("Payment error:", error);
       toast.error("Habaye ikosa");

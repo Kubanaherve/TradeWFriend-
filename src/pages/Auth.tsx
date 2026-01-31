@@ -5,14 +5,14 @@ import { Input } from "@/components/ui/input";
 import { labels } from "@/lib/kinyarwanda";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Gem, Phone, Lock, UserPlus, LogIn, RefreshCw } from "lucide-react";
+import { Gem, Phone, Lock, UserPlus, LogIn, Plus, User, X } from "lucide-react";
 import { PinDialPad } from "@/components/PinDialPad";
 import logo from "@/assets/logo.png";
 
-// Local storage key for remembered device
-const DEVICE_STORAGE_KEY = "jfj_remembered_device";
+// Local storage key for remembered accounts
+const ACCOUNTS_STORAGE_KEY = "jfj_remembered_accounts";
 
-interface RememberedDevice {
+interface RememberedAccount {
   phone: string;
   displayName: string;
 }
@@ -26,20 +26,24 @@ const AuthPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   
-  // Remembered device state
-  const [rememberedDevice, setRememberedDevice] = useState<RememberedDevice | null>(null);
-  const [showPinPad, setShowPinPad] = useState(false);
+  // Multiple accounts support
+  const [rememberedAccounts, setRememberedAccounts] = useState<RememberedAccount[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<RememberedAccount | null>(null);
+  const [showAccountPicker, setShowAccountPicker] = useState(false);
+  const [showFullForm, setShowFullForm] = useState(false);
 
   useEffect(() => {
-    // Check for remembered device
-    const stored = localStorage.getItem(DEVICE_STORAGE_KEY);
+    // Load remembered accounts
+    const stored = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
     if (stored) {
       try {
-        const device = JSON.parse(stored) as RememberedDevice;
-        setRememberedDevice(device);
-        setShowPinPad(true);
+        const accounts = JSON.parse(stored) as RememberedAccount[];
+        setRememberedAccounts(accounts);
+        if (accounts.length > 0) {
+          setShowAccountPicker(true);
+        }
       } catch {
-        localStorage.removeItem(DEVICE_STORAGE_KEY);
+        localStorage.removeItem(ACCOUNTS_STORAGE_KEY);
       }
     }
 
@@ -69,25 +73,57 @@ const AuthPage = () => {
     return `${cleanPhone}@phone.local`;
   };
 
-  const rememberDevice = (phoneNum: string, name: string) => {
-    const device: RememberedDevice = { phone: phoneNum, displayName: name };
-    localStorage.setItem(DEVICE_STORAGE_KEY, JSON.stringify(device));
+  const saveAccount = (phoneNum: string, name: string) => {
+    const newAccount: RememberedAccount = { phone: phoneNum, displayName: name };
+    const existing = rememberedAccounts.filter(
+      a => a.phone.replace(/\D/g, '') !== phoneNum.replace(/\D/g, '')
+    );
+    const updated = [...existing, newAccount];
+    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(updated));
+    setRememberedAccounts(updated);
   };
 
-  const forgetDevice = () => {
-    localStorage.removeItem(DEVICE_STORAGE_KEY);
-    setRememberedDevice(null);
-    setShowPinPad(false);
+  const removeAccount = (phoneNum: string) => {
+    const updated = rememberedAccounts.filter(
+      a => a.phone.replace(/\D/g, '') !== phoneNum.replace(/\D/g, '')
+    );
+    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(updated));
+    setRememberedAccounts(updated);
+    if (updated.length === 0) {
+      setShowAccountPicker(false);
+      setShowFullForm(false);
+    }
+  };
+
+  const handleSelectAccount = (account: RememberedAccount) => {
+    setSelectedAccount(account);
+  };
+
+  const handleBackToAccounts = () => {
+    setSelectedAccount(null);
+    setIsLoading(false);
+  };
+
+  const handleAddNewAccount = () => {
+    setShowAccountPicker(false);
+    setShowFullForm(true);
+    setSelectedAccount(null);
+  };
+
+  const handleBackToAccountPicker = () => {
+    setShowFullForm(false);
+    setShowAccountPicker(true);
     setPhone("");
     setPin("");
+    setDisplayName("");
   };
 
   const handlePinLogin = async (enteredPin: string) => {
-    if (!rememberedDevice) return;
+    if (!selectedAccount) return;
 
     setIsLoading(true);
     try {
-      const email = formatPhoneToEmail(rememberedDevice.phone);
+      const email = formatPhoneToEmail(selectedAccount.phone);
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password: enteredPin,
@@ -99,7 +135,7 @@ const AuthPage = () => {
         return;
       }
 
-      toast.success("Murakaza neza! 💎");
+      toast.success(`Murakaza neza, ${selectedAccount.displayName}! 💎`);
     } catch (error: any) {
       console.error("Login error:", error);
       toast.error("Habaye ikosa");
@@ -144,8 +180,8 @@ const AuthPage = () => {
           .eq("user_id", data.user.id)
           .maybeSingle();
 
-        // Remember this device
-        rememberDevice(phone, profile?.display_name || "User");
+        // Save this account
+        saveAccount(phone, profile?.display_name || "User");
       }
 
       toast.success("Murakaza neza! 💎");
@@ -199,8 +235,8 @@ const AuthPage = () => {
             display_name: displayName,
           });
 
-        // Remember this device
-        rememberDevice(phone, displayName);
+        // Save this account
+        saveAccount(phone, displayName);
 
         toast.success("Konti yawe yaremewe! 🎉");
       }
@@ -219,8 +255,8 @@ const AuthPage = () => {
     );
   }
 
-  // PIN Dial Pad Screen for remembered device
-  if (showPinPad && rememberedDevice) {
+  // PIN Dial Pad Screen for selected account
+  if (selectedAccount) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary via-navy-light to-primary flex flex-col items-center justify-center p-6">
         {/* Logo */}
@@ -236,19 +272,82 @@ const AuthPage = () => {
           <PinDialPad
             onComplete={handlePinLogin}
             isLoading={isLoading}
-            displayName={rememberedDevice.displayName}
+            displayName={selectedAccount.displayName}
           />
         </div>
 
-        {/* Switch Account Button */}
+        {/* Back Button */}
         <button
-          onClick={forgetDevice}
+          onClick={handleBackToAccounts}
           className="mt-8 flex items-center gap-2 text-white/50 text-sm hover:text-white/70 transition-colors animate-fade-in"
           style={{ animationDelay: '0.2s' }}
         >
-          <RefreshCw size={14} />
-          Hindura konti
+          ← Subira inyuma
         </button>
+      </div>
+    );
+  }
+
+  // Account Picker Screen (when multiple accounts are remembered)
+  if (showAccountPicker && rememberedAccounts.length > 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary via-navy-light to-primary flex flex-col items-center justify-center p-6">
+        {/* Logo */}
+        <div className="text-center mb-8 animate-fade-in">
+          <div className="w-20 h-20 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center mx-auto mb-4 shadow-premium">
+            <img src={logo} alt="Logo" className="w-14 h-14 object-contain" />
+          </div>
+          <h1 className="text-xl font-bold text-white mb-1">{labels.appName}</h1>
+          <p className="text-white/60 text-sm">Hitamo konti yawe</p>
+        </div>
+
+        {/* Account List */}
+        <div className="w-full max-w-sm space-y-3 animate-fade-in" style={{ animationDelay: '0.1s' }}>
+          {rememberedAccounts.map((account, index) => (
+            <div
+              key={account.phone}
+              className="relative group"
+            >
+              <button
+                onClick={() => handleSelectAccount(account)}
+                className="w-full glass-card p-4 flex items-center gap-4 hover:bg-white/10 transition-all active:scale-[0.98]"
+              >
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-secondary to-gold-light flex items-center justify-center text-xl font-bold text-primary">
+                  {account.displayName.charAt(0).toUpperCase()}
+                </div>
+                <div className="text-left flex-1">
+                  <p className="font-semibold text-foreground text-lg">{account.displayName}</p>
+                  <p className="text-sm text-muted-foreground">{account.phone}</p>
+                </div>
+              </button>
+              {/* Remove account button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeAccount(account.phone);
+                }}
+                className="absolute top-2 right-2 p-2 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Siba konti"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ))}
+
+          {/* Add Another Account */}
+          <button
+            onClick={handleAddNewAccount}
+            className="w-full glass-card p-4 flex items-center gap-4 hover:bg-white/10 transition-all border-dashed border-2 border-white/20"
+          >
+            <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center">
+              <Plus size={24} className="text-white/70" />
+            </div>
+            <div className="text-left">
+              <p className="font-medium text-foreground">Ongeraho konti</p>
+              <p className="text-sm text-muted-foreground">Iyandikishe cyangwa injira</p>
+            </div>
+          </button>
+        </div>
       </div>
     );
   }
@@ -270,6 +369,16 @@ const AuthPage = () => {
 
       {/* Auth Card */}
       <div className="w-full max-w-sm glass-card p-6 animate-fade-in" style={{ animationDelay: '0.1s' }}>
+        {/* Back button if coming from account picker */}
+        {showFullForm && rememberedAccounts.length > 0 && (
+          <button
+            onClick={handleBackToAccountPicker}
+            className="mb-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ← Subira ku makonti
+          </button>
+        )}
+
         {/* Toggle */}
         <div className="flex gap-2 mb-6 p-1 bg-muted rounded-lg">
           <button
@@ -302,7 +411,7 @@ const AuthPage = () => {
               <Input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Urugero: Mama"
+                placeholder="Urugero: Mama cyangwa Papa"
                 className="bg-muted/50 input-glow"
               />
             </div>

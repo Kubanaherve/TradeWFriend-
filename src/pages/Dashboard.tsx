@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
+import { ChangePinCard } from "@/components/ChangePinCard";
 
 interface DashboardStats {
   totalUnpaid: number;
@@ -360,8 +361,11 @@ const DashboardPage = () => {
         ))}
         </div>
 
-        {/* Reset Buttons */}
+        {/* Settings Section */}
         <div className="pt-4 space-y-3">
+          {/* Change PIN Card */}
+          <ChangePinCard />
+
           <Button
             onClick={() => setShowResetModal(true)}
             variant="outline"

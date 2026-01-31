@@ -273,13 +273,6 @@ const AuthPage = () => {
             onComplete={handlePinLogin}
             isLoading={isLoading}
             displayName={selectedAccount.displayName}
-            onChangePin={() => {
-              setSelectedAccount(null);
-              setShowFullForm(true);
-              setShowAccountPicker(false);
-              setPhone(selectedAccount.phone);
-              setIsLogin(true);
-            }}
           />
         </div>
 

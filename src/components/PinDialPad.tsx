@@ -6,10 +6,9 @@ interface PinDialPadProps {
   onComplete: (pin: string) => void;
   isLoading?: boolean;
   displayName?: string;
-  onChangePin?: () => void;
 }
 
-export function PinDialPad({ onComplete, isLoading, displayName, onChangePin }: PinDialPadProps) {
+export function PinDialPad({ onComplete, isLoading, displayName }: PinDialPadProps) {
   const [pin, setPin] = useState("");
   const maxLength = 6;
 
@@ -105,16 +104,6 @@ export function PinDialPad({ onComplete, isLoading, displayName, onChangePin }: 
       <p className="text-white/40 text-xs mt-6">
         Injiza PIN yawe (imibare 5-6)
       </p>
-
-      {/* Change PIN button */}
-      {onChangePin && (
-        <button
-          onClick={onChangePin}
-          className="mt-4 text-secondary/80 text-sm hover:text-secondary transition-colors underline underline-offset-2"
-        >
-          Hindura PIN
-        </button>
-      )}
     </div>
   );
 }

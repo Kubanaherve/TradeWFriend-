@@ -217,6 +217,13 @@ const DashboardPage = () => {
       textDark: true,
       description: labels.inventorySubtitle,
     },
+    {
+      icon: Users,
+      label: "Abakiriya",
+      path: "/clients",
+      bgClass: "bg-gradient-to-br from-emerald-500 to-teal-600",
+      description: "Amakuru y'abakiriya",
+    },
   ];
 
   return (

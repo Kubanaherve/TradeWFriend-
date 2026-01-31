@@ -48,7 +48,8 @@ const DebtsPage = () => {
     setIsLoading(true);
     const { data, error } = await supabase
       .from("customers")
-      .select("*")
+      .select("id, name, phone, items, amount, due_date, is_paid, created_at")
+
       .eq("is_paid", false)
       .order("created_at", { ascending: false });
 
@@ -180,11 +181,20 @@ const DebtsPage = () => {
     }
   };
 
-  const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.items.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.phone?.includes(searchQuery)
+ const filteredCustomers = customers.filter(c => {
+  const name = typeof c.name === "string" ? c.name : "";
+  const items = typeof c.items === "string" ? c.items : "";
+  const phone = typeof c.phone === "string" ? c.phone : "";
+
+  const q = searchQuery.toLowerCase();
+
+  return (
+    name.toLowerCase().includes(q) ||
+    items.toLowerCase().includes(q) ||
+    phone.includes(searchQuery)
   );
+});
+
 
   const totalUnpaid = filteredCustomers.reduce((sum, c) => sum + Number(c.amount), 0);
 

@@ -60,12 +60,18 @@ const DashboardPage = () => {
     const { data: customers } = await supabase
       .from("customers")
       .select("amount, is_paid");
-    
+
     const unpaid = customers?.filter(c => !c.is_paid).reduce((sum, c) => sum + Number(c.amount), 0) || 0;
     const totalCustomers = customers?.filter(c => !c.is_paid).length || 0;
 
-    // Get total sales (money received when customers pay)
-    const paidCustomers = customers?.filter(c => c.is_paid).reduce((sum, c) => sum + Number(c.amount), 0) || 0;
+    // Get total paid amount from settings
+    const { data: totalPaidSetting } = await supabase
+      .from("app_settings")
+      .select("setting_value")
+      .eq("setting_key", "total_paid")
+      .maybeSingle();
+
+    const totalPaid = totalPaidSetting ? parseFloat(totalPaidSetting.setting_value) : 0;
 
     // Get capital from settings
     const { data: capitalSetting } = await supabase
@@ -79,7 +85,7 @@ const DashboardPage = () => {
     setStats({
       totalUnpaid: unpaid,
       totalCustomers,
-      totalSales: paidCustomers,
+      totalSales: totalPaid,
       totalCapital: capital,
     });
     setCapitalInput(capital.toString());
@@ -147,6 +153,11 @@ const DashboardPage = () => {
         .from("app_settings")
         .update({ setting_value: "0" })
         .eq("setting_key", "total_capital");
+      // Reset total paid to 0
+      await supabase
+        .from("app_settings")
+        .update({ setting_value: "0" })
+        .eq("setting_key", "total_paid");
       // Reset paid status on customers (mark all as unpaid again for new cycle)
       await supabase
         .from("customers")

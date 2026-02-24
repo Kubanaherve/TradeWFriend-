@@ -2,56 +2,40 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { labels, formatCurrency, formatDate } from "@/lib/kinyarwanda";
+import { labels, formatCurrency } from "@/lib/kinyarwanda";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Package, Trash2, Save, ShoppingCart } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import { RecordSaleModal } from "@/components/RecordSaleModal";
+import { ArrowLeft, Trash2, Plus } from "lucide-react";
 
 interface InventoryItem {
   id: string;
   item_name: string;
   quantity: number;
   cost_price: number;
-  sale_price: number;
-  date_bought: string;
-  notes: string | null;
-  created_at: string;
 }
 
 const InventoryPage = () => {
   const navigate = useNavigate();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showSaleModal, setShowSaleModal] = useState(false);
-  const [selectedItemForSale, setSelectedItemForSale] = useState<InventoryItem | null>(null);
-  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [isSaving, setIsSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingCost, setEditingCost] = useState<string>("");
 
-  const [form, setForm] = useState({
-    item_name: "",
-    quantity: "1",
-    cost_price: "",
-    sale_price: "",
-    date_bought: new Date().toISOString().split('T')[0],
-    notes: "",
-  });
+  // For Add Item form
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newQuantity, setNewQuantity] = useState("");
+  const [newCost, setNewCost] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
 
   const fetchItems = async () => {
     setIsLoading(true);
     const { data, error } = await supabase
       .from("inventory_items")
-      .select("*")
+      .select("id, item_name, quantity, cost_price")
       .order("created_at", { ascending: false });
-    if (error) {
-      console.error(error);
-      toast.error("Habaye ikosa mu gufata ibintu");
-    } else {
-      setItems(data || []);
-    }
+    if (error) toast.error("Habaye ikosa mu gufata ibintu");
+    else setItems(data || []);
     setIsLoading(false);
   };
 
@@ -59,31 +43,21 @@ const InventoryPage = () => {
     fetchItems();
   }, []);
 
-  const handleSubmit = async () => {
-    if (!form.item_name.trim()) {
-      toast.error("Andika izina ry'ikintu");
+  const handleSaveCost = async (id: string) => {
+    const cost = parseFloat(editingCost);
+    if (isNaN(cost) || cost < 0) {
+      toast.error("Andika amafaranga meza");
       return;
     }
-    setIsSaving(true);
-    try {
-      const { error } = await supabase.from("inventory_items").insert({
-        item_name: form.item_name.trim(),
-        quantity: parseInt(form.quantity) || 1,
-        cost_price: parseFloat(form.cost_price) || 0,
-        sale_price: parseFloat(form.sale_price) || 0,
-        date_bought: form.date_bought,
-        notes: form.notes.trim() || null,
-      });
-      if (error) throw error;
-      toast.success("Byongeweho neza ✨");
-      setShowAddModal(false);
-      setForm({ item_name: "", quantity: "1", cost_price: "", sale_price: "", date_bought: new Date().toISOString().split('T')[0], notes: "" });
+    const { error } = await supabase
+      .from("inventory_items")
+      .update({ cost_price: cost })
+      .eq("id", id);
+    if (error) toast.error("Habaye ikosa");
+    else {
+      toast.success("Amafaranga yahinduwe ✨");
+      setEditingId(null);
       fetchItems();
-    } catch (error) {
-      console.error(error);
-      toast.error("Habaye ikosa");
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -94,9 +68,33 @@ const InventoryPage = () => {
     else { toast.success("Byasibwe ✨"); fetchItems(); }
   };
 
-  // Totals
-  const totalCost = items.reduce((sum, item) => sum + item.cost_price * item.quantity, 0);
-  const expectedRevenue = items.reduce((sum, item) => sum + item.sale_price * item.quantity, 0);
+  const handleAddItem = async () => {
+    const quantity = parseInt(newQuantity);
+    const cost = parseFloat(newCost);
+
+    if (!newName || isNaN(quantity) || quantity < 0 || isNaN(cost) || cost < 0) {
+      toast.error("Andika neza izina, amafaranga n'umubare");
+      return;
+    }
+
+    setIsAdding(true);
+    const { error } = await supabase.from("inventory_items").insert({
+      item_name: newName,
+      quantity,
+      cost_price: cost
+    });
+
+    if (error) toast.error("Habaye ikosa mu kongera ikintu");
+    else {
+      toast.success("Ikintu cyongewe muri stock ✨");
+      setNewName("");
+      setNewQuantity("");
+      setNewCost("");
+      setShowAddForm(false);
+      fetchItems();
+    }
+    setIsAdding(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted to-background">
@@ -108,24 +106,47 @@ const InventoryPage = () => {
           </button>
           <div>
             <h1 className="text-base font-bold">{labels.inventoryTitle}</h1>
-            <p className="text-[10px] text-muted-foreground">{labels.inventorySubtitle}</p>
           </div>
         </div>
-        <Button onClick={() => setShowAddModal(true)} size="sm" className="btn-gold">
-          <Plus size={16} className="mr-1" /> {labels.addNew}
-        </Button>
       </header>
 
-      {/* Totals */}
-      <div className="p-4 max-w-lg mx-auto grid grid-cols-2 gap-3">
-        <div className="glass-card p-4">
-          <p className="text-[10px] text-muted-foreground mb-1">Total Cost Price</p>
-          <p className="text-xl font-bold text-primary">{formatCurrency(totalCost)}</p>
-        </div>
-        <div className="glass-card p-4">
-          <p className="text-[10px] text-muted-foreground mb-1">Hateganyijwe kwinjiza</p>
-          <p className="text-xl font-bold text-orange-600">{formatCurrency(expectedRevenue)}</p>
-        </div>
+      {/* Add New Item Button */}
+      <div className="p-4 max-w-lg mx-auto">
+        <Button
+          className="w-full mb-3 flex items-center justify-center gap-2"
+          onClick={() => setShowAddForm(prev => !prev)}
+        >
+          <Plus size={16} /> Ongeraho Ikintu Gishya
+        </Button>
+
+        {showAddForm && (
+          <div className="glass-card p-4 mb-3 space-y-2 animate-fade-in">
+            <Input
+              placeholder="Izina ry'ikintu"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+            />
+            <Input
+              placeholder="Umubare uri muri stock"
+              type="number"
+              value={newQuantity}
+              onChange={e => setNewQuantity(e.target.value)}
+            />
+            <Input
+              placeholder="Cost Price"
+              type="number"
+              value={newCost}
+              onChange={e => setNewCost(e.target.value)}
+            />
+            <Button
+              className="w-full"
+              onClick={handleAddItem}
+              disabled={isAdding}
+            >
+              {isAdding ? "Adding..." : "Ongeraho"}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Item List */}
@@ -136,66 +157,46 @@ const InventoryPage = () => {
           </div>
         ) : items.length === 0 ? (
           <div className="glass-card p-8 text-center">
-            <Package size={48} className="mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">{labels.noInventory}</p>
-            <Button onClick={() => setShowAddModal(true)} className="mt-4 btn-gold">
-              <Plus size={16} className="mr-2" /> {labels.addNew}
-            </Button>
+            <p className="text-muted-foreground">Nta bicuruzwa biri muri stock</p>
           </div>
         ) : (
           items.map(item => (
-            <div key={item.id} className="glass-card p-4 flex justify-between items-start animate-fade-in">
+            <div
+              key={item.id}
+              className="glass-card p-4 flex justify-between items-center animate-fade-in"
+            >
               <div className="flex-1">
                 <h3 className="font-semibold">{item.item_name}</h3>
-                <p className="text-xs text-muted-foreground mt-1">Qty: 
-                  <Input type="number" value={item.quantity} min={0} onChange={async e => {
-                    const newQty = parseInt(e.target.value) || 0;
-                    const { error } = await supabase.from("inventory_items").update({ quantity: newQty }).eq("id", item.id);
-                    if (error) toast.error("Habaye ikosa");
-                    else fetchItems();
-                  }} className="w-16 ml-1 text-xs" />
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">Cost: {formatCurrency(item.cost_price)}</p>
-                <p className="text-xs text-muted-foreground mt-1">Sale: {formatCurrency(item.sale_price)}</p>
-                {item.notes && <p className="text-xs italic mt-1 text-muted-foreground">{item.notes}</p>}
+                {editingId === item.id ? (
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      type="number"
+                      value={editingCost}
+                      onChange={e => setEditingCost(e.target.value)}
+                      className="w-24 text-sm"
+                    />
+                    <Button size="sm" onClick={() => handleSaveCost(item.id)}>Save</Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
+                  </div>
+                ) : (
+                  <p className="text-sm mt-1 flex flex-wrap gap-2">
+                    Cost Price: <span className="font-bold text-purple-600">{formatCurrency(item.cost_price)}</span> | 
+                    <span className="font-bold text-purple-600">Hasigayemo: {item.quantity}</span>
+                  </p>
+                )}
               </div>
               <div className="flex flex-col gap-2 ml-3">
                 <Button size="icon" variant="destructive" onClick={() => handleDelete(item.id)}>
                   <Trash2 size={16} />
                 </Button>
-                <Button size="icon" className="text-primary" onClick={() => { setSelectedItemForSale(item); setShowSaleModal(true); }}>
-                  <ShoppingCart size={16} />
+                <Button size="icon" className="text-primary" onClick={() => { setEditingId(item.id); setEditingCost(item.cost_price.toString()); }}>
+                  Edit
                 </Button>
               </div>
             </div>
           ))
         )}
       </main>
-
-      {/* Add Item Modal */}
-      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-        <DialogContent className="max-w-sm mx-4 rounded-2xl">
-          <DialogHeader><DialogTitle>{labels.addInventoryItem}</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <Input placeholder="Izina ry'ikintu..." value={form.item_name} onChange={e => setForm({ ...form, item_name: e.target.value })} />
-            <div className="grid grid-cols-2 gap-3">
-              <Input type="number" placeholder="Quantity" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} />
-              <Input type="number" placeholder="Cost Price" value={form.cost_price} onChange={e => setForm({ ...form, cost_price: e.target.value })} />
-            </div>
-            <Input type="number" placeholder="Sale Price" value={form.sale_price} onChange={e => setForm({ ...form, sale_price: e.target.value })} />
-            <Input type="date" value={form.date_bought} onChange={e => setForm({ ...form, date_bought: e.target.value })} />
-            <Input placeholder="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
-
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setShowAddModal(false)}>Cancel</Button>
-              <Button className="btn-gold" onClick={handleSubmit}>Save</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Record Sale Modal */}
-      <RecordSaleModal open={showSaleModal} onOpenChange={setShowSaleModal} preSelectedItem={selectedItemForSale} onSuccess={fetchItems} />
     </div>
   );
 };

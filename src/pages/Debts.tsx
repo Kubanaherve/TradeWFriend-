@@ -124,40 +124,78 @@ const DebtsPage = () => {
     setPaymentModalOpen(true);
   };
 
-  const handlePayment = async (paymentAmount: number, thankYouMessage: string) => {
-    if (!selectedCustomer) return;
-    try {
-      const newAmount = (selectedCustomer.amount || 0) - paymentAmount;
-      let finalMessage = thankYouMessage;
+ const handlePayment = async (paymentAmount: number, thankYouMessage: string) => {
+  if (!selectedCustomer) return;
 
-      if (newAmount <= 0) {
-        const { error } = await supabase
-          .from("customers")
-          .update({ is_paid: true, paid_at: new Date().toISOString(), amount: 0 })
-          .eq("id", selectedCustomer.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("customers")
-          .update({ amount: newAmount, updated_at: new Date().toISOString() })
-          .eq("id", selectedCustomer.id);
-        if (error) throw error;
-        finalMessage += `\n\nAmafaranga asigaye: ${formatCurrency(newAmount)}`;
-      }
+  try {
+    const newAmount = (selectedCustomer.amount || 0) - paymentAmount;
+    let finalMessage = thankYouMessage;
 
-      toast.success("Byashyizweho neza! ✨");
-      if (selectedCustomer.phone) {
-        window.location.href = `sms:${selectedCustomer.phone.replace(/\s/g, "")}?body=${encodeURIComponent(finalMessage)}`;
-      }
-      setPaymentModalOpen(false);
-      setSelectedCustomer(null);
-      fetchCustomers(1, searchQuery);
-      setPage(1);
-    } catch (err) {
-      console.error("Payment error:", err);
-      toast.error("Habaye ikosa");
+    // 1. Get current total_paid
+    const { data: totalPaidSetting } = await supabase
+      .from("app_settings")
+      .select("setting_value")
+      .eq("setting_key", "total_paid")
+      .maybeSingle();
+
+    const currentTotalPaid = totalPaidSetting
+      ? parseFloat(totalPaidSetting.setting_value)
+      : 0;
+
+    const updatedTotalPaid = currentTotalPaid + paymentAmount;
+
+    // 2. Update total_paid in app_settings
+    if (totalPaidSetting) {
+      await supabase
+        .from("app_settings")
+        .update({ setting_value: updatedTotalPaid.toString() })
+        .eq("setting_key", "total_paid");
+    } else {
+      await supabase
+        .from("app_settings")
+        .insert({
+          setting_key: "total_paid",
+          setting_value: updatedTotalPaid.toString(),
+        });
     }
-  };
+
+    // 3. Update customer debt
+    if (newAmount <= 0) {
+      const { error } = await supabase
+        .from("customers")
+        .update({
+          is_paid: true,
+          paid_at: new Date().toISOString(),
+          amount: 0,
+        })
+        .eq("id", selectedCustomer.id);
+
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from("customers")
+        .update({
+          amount: newAmount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedCustomer.id);
+
+      if (error) throw error;
+
+      finalMessage += `\n\nAmafaranga asigaye: ${formatCurrency(newAmount)}`;
+    }
+
+    toast.success("Byashyizweho neza! ✨");
+
+    // ✅ Close this function block here
+    setPaymentModalOpen(false); // close modal after payment
+    fetchCustomers(1, searchQuery);
+    setPage(1);
+  } catch (err) {
+    console.error("Payment error:", err);
+    toast.error("Habaye ikosa mu kwishyura");
+  }
+};
 
   const handleDelete = async (customer: Customer) => {
     if (!confirm(`${labels.confirmDelete} ${customer.name}?`)) return;

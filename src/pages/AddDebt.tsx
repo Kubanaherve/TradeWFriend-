@@ -40,9 +40,10 @@ const AddDebtPageEnhanced = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [showInventoryPopup, setShowInventoryPopup] = useState(false);
   const [popupSelectedItem, setPopupSelectedItem] = useState<InventoryItem | null>(null);
-  const [popupItemQty, setPopupItemQty] = useState(1);
+  const [popupItemQty, setPopupItemQty] = useState<string>("");
 
-  // Fetch inventory whenever popup opens
+
+  // Fetch inventory when popup opens
   useEffect(() => {
     if (!showInventoryPopup) return;
     const fetchInventory = async () => {
@@ -60,36 +61,31 @@ const AddDebtPageEnhanced = () => {
     fetchInventory();
   }, [showInventoryPopup]);
 
+  // Customer autocomplete
   const handleCustomerSelect = (customer: { name: string; phone: string | null }) => {
-    setForm(prev => ({
-      ...prev,
-      name: customer.name,
-      phone: customer.phone || "",
-    }));
+    setForm(prev => ({ ...prev, name: customer.name, phone: customer.phone || "" }));
   };
 
+  // Confirm + Add Item
   const confirmPopupItem = () => {
     if (!popupSelectedItem || popupItemQty < 1) return;
 
-    const existing = selectedItems.find(i => i.id === popupSelectedItem.id);
-    if (existing) {
-      existing.quantity += popupItemQty;
-      setSelectedItems([...selectedItems]);
+    const newItems = [...selectedItems];
+    const existingIndex = newItems.findIndex(i => i.id === popupSelectedItem.id);
+
+    if (existingIndex >= 0) {
+      newItems[existingIndex].quantity += popupItemQty;
     } else {
-      setSelectedItems([...selectedItems, {
+      newItems.push({
         id: popupSelectedItem.id,
         name: popupSelectedItem.item_name,
         quantity: popupItemQty,
         price: popupSelectedItem.cost_price,
-      }]);
+      });
     }
 
-    recalcAmount([...selectedItems, {
-      id: popupSelectedItem.id,
-      name: popupSelectedItem.item_name,
-      quantity: popupItemQty,
-      price: popupSelectedItem.cost_price,
-    }]);
+    setSelectedItems(newItems);
+    recalcAmount(newItems);
 
     setPopupSelectedItem(null);
     setPopupItemQty(1);
@@ -107,6 +103,7 @@ const AddDebtPageEnhanced = () => {
     setForm(prev => ({ ...prev, amount: total.toString() }));
   };
 
+  // Handle submit (Debt or Sale)
   const handleSubmit = async () => {
     if (!form.name.trim() || selectedItems.length === 0) {
       toast.error("Uzuza ibisabwa byose");
@@ -114,27 +111,76 @@ const AddDebtPageEnhanced = () => {
     }
 
     setIsLoading(true);
-    try {
-      await supabase.from("customers").insert([{
-        name: form.name.trim(),
-        phone: form.phone.trim() || null,
-        items: JSON.stringify(selectedItems.map(i => `${i.name} ${i.quantity}`)),
-        amount: parseFloat(form.amount),
-        due_date: form.dueDate,
-        is_paid: form.isPaid,
-        paid_at: form.isPaid ? new Date().toISOString() : null,
-      }]);
 
-      // Update inventory stock
+    try {
+      const amountValue = parseFloat(form.amount);
+
+      // 1️⃣ Insert debt or sale
+      const { error: insertError } = await supabase.from("customers").insert([
+        {
+          name: form.name.trim(),
+          phone: form.phone.trim() || null,
+          items: JSON.stringify(selectedItems.map(i => `${i.name} ${i.quantity}`)),
+          amount: amountValue,
+          due_date: form.dueDate,
+          is_paid: form.isPaid,
+          paid_at: form.isPaid ? new Date().toISOString() : null,
+        },
+      ]);
+      if (insertError) throw insertError;
+
+      // 2️⃣ Update inventory stock
       for (const item of selectedItems) {
-        const current = inventory.find(i => i.id === item.id)?.quantity || 0;
-        await supabase
-          .from("inventory_items")
-          .update({ quantity: current - item.quantity })
-          .eq("id", item.id);
+        const currentQty = inventory.find(i => i.id === item.id)?.quantity || 0;
+        await supabase.from("inventory_items").update({ quantity: currentQty - item.quantity }).eq("id", item.id);
+      }
+
+      // 3️⃣ If paid, update total_paid in app_settings
+      if (form.isPaid) {
+        const { data: totalPaidSetting } = await supabase
+          .from("app_settings")
+          .select("setting_value")
+          .eq("setting_key", "total_paid")
+          .maybeSingle();
+
+        const currentTotalPaid = totalPaidSetting ? parseFloat(totalPaidSetting.setting_value) : 0;
+        const updatedTotalPaid = currentTotalPaid + amountValue;
+
+        if (totalPaidSetting) {
+          await supabase.from("app_settings").update({ setting_value: updatedTotalPaid.toString() }).eq("setting_key", "total_paid");
+        } else {
+          await supabase.from("app_settings").insert({ setting_key: "total_paid", setting_value: updatedTotalPaid.toString() });
+        }
       }
 
       toast.success(labels.debtSavedSuccess + " ✨");
+
+// ✅ Send WhatsApp ONLY if azishyura nyuma
+if (!form.isPaid && form.phone) {
+  const itemsText = selectedItems
+    .map(i => `${i.name} ${i.quantity}`)
+    .join(", ");
+
+  const message = `Muraho neza mufashe ${itemsText} muri Jeanne Friend Jewerlies totale ni: ${formatCurrency(amountValue)} murisanga!`;
+
+  // Format Rwanda number: 078xxxx → 25078xxxx
+  let cleanPhone = form.phone.replace(/\s+/g, "");
+
+  if (cleanPhone.startsWith("0")) {
+    cleanPhone = "25" + cleanPhone;
+  }
+
+  const whatsappURL = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+
+  window.open(whatsappURL, "_blank");
+}
+
+
+      // 4️⃣ Emit event for DebtsPage to refresh
+      window.dispatchEvent(new CustomEvent("newDebtAdded", {
+        detail: { customerName: form.name, amount: amountValue, isPaid: form.isPaid }
+      }));
+
       navigate("/debts");
     } catch (err) {
       console.error(err);
@@ -146,6 +192,7 @@ const AddDebtPageEnhanced = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted to-background p-4">
+      {/* Header */}
       <header className="sticky top-0 z-50 glass-card rounded-none border-x-0 border-t-0 py-3 px-4 flex items-center gap-3">
         <button onClick={() => navigate("/dashboard")} className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
           <ArrowLeft size={18} />
@@ -153,63 +200,41 @@ const AddDebtPageEnhanced = () => {
         <h1 className="text-base font-bold">Kongeramo Umukiriya n'Ibyo yafashe</h1>
       </header>
 
+      {/* Form */}
       <main className="max-w-lg mx-auto mt-4 space-y-4">
         <CustomerAutocomplete
           value={form.name}
-          onChange={(v) => setForm({ ...form, name: v })}
+          onChange={v => setForm({ ...form, name: v })}
           onSelect={handleCustomerSelect}
           suggestions={customers}
           placeholder="Andika izina ry'umukiriya..."
         />
+        <Input type="tel" placeholder="07X XXX XXXX" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="bg-white/50 input-glow" />
 
-        <Input
-          type="tel"
-          placeholder="07X XXX XXXX"
-          value={form.phone}
-          onChange={(e) => setForm({ ...form, phone: e.target.value })}
-          className="bg-white/50 input-glow"
-        />
+        {/* Selected Items */}
+        <div>
+          <label className="block text-xs font-medium mb-1.5">Items Taken *</label>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {selectedItems.map(i => (
+              <div key={i.id} className="flex justify-between items-center bg-muted/20 rounded-lg p-2">
+                <span>{i.name} {i.quantity}</span>
+                <button onClick={() => removeItemFromList(i.id)} className="text-red-600 text-lg animate-pulse hover:scale-110 transition-transform" title="Gukuraho ❌">❌</button>
+              </div>
+            ))}
+          </div>
+          <Button onClick={() => setShowInventoryPopup(true)} size="sm" className="mt-2 btn-gold">+ Add Item</Button>
+        </div>
 
-       {/* Selected Items */}
-<div>
-  <label className="block text-xs font-medium mb-1.5">Items Taken *</label>
-  <div className="space-y-2 max-h-48 overflow-y-auto">
-    {selectedItems.map(i => (
-      <div key={i.id} className="flex justify-between items-center bg-muted/20 rounded-lg p-2">
-        <span>{i.name} {i.quantity}</span>
-        {/* Red cross button with animation */}
-        <button
-          onClick={() => removeItemFromList(i.id)}
-          className="text-red-600 text-lg animate-pulse hover:scale-110 transition-transform"
-          title="Gukuraho ❌"
-        >
-          ❌
-        </button>
-      </div>
-    ))}
-  </div>
-  <Button onClick={() => setShowInventoryPopup(true)} size="sm" className="mt-2 btn-gold">
-    + Add Item
-  </Button>
-</div>
         {/* Amount */}
-        <Input
-          type="number"
-          placeholder="0"
-          value={form.amount}
-          onChange={(e) => setForm({ ...form, amount: e.target.value })}
-          className="bg-white/50 input-glow text-lg font-semibold"
-        />
+        <Input type="number" placeholder="0" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} className="bg-white/50 input-glow text-lg font-semibold" />
 
         {/* Payment Status */}
         <div className="flex items-center justify-between py-3 border-t border-border/50">
           <span>{form.isPaid ? labels.paid : labels.willPayLater}</span>
-          <Switch
-            checked={form.isPaid}
-            onCheckedChange={(checked) => setForm({ ...form, isPaid: checked })}
-          />
+          <Switch checked={form.isPaid} onCheckedChange={checked => setForm({ ...form, isPaid: checked })} />
         </div>
 
+        {/* Actions */}
         <div className="flex gap-3 pt-4">
           <Button onClick={() => navigate("/dashboard")} variant="outline" className="flex-1" disabled={isLoading}>
             <X size={16} /> {labels.cancel}
@@ -237,21 +262,21 @@ const AddDebtPageEnhanced = () => {
                 </div>
               ))}
             </div>
-
             {popupSelectedItem && (
               <div className="flex gap-2 items-center">
                 <span>{popupSelectedItem.item_name}</span>
                 <Input
-                  type="number"
-                  min={1}
-                  value={popupItemQty}
-                  onChange={(e) => setPopupItemQty(parseInt(e.target.value) || 1)}
-                  className="bg-white/50 w-20 input-glow"
-                />
+  type="number"
+  min={1}
+  value={popupItemQty}
+  onChange={e => setPopupItemQty(e.target.value)}
+  placeholder="Qty"
+  className="bg-white/50 w-20 input-glow"
+/>
+
                 <Button onClick={confirmPopupItem} className="btn-gold flex-1">OK</Button>
               </div>
             )}
-
             <Button variant="outline" className="w-full" onClick={() => setShowInventoryPopup(false)}>Cancel</Button>
           </div>
         </div>

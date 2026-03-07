@@ -331,9 +331,15 @@ const DashboardPage = () => {
             <Trash2 size={16} className="mr-2" /> {labels.resetAll} (Restock)
           </Button>
 
-          <Button onClick={() => setShowFactoryResetModal(true)} variant="destructive" className="w-full">
-            <AlertTriangle size={16} className="mr-2" /> Factory Reset (Siba Byose)
-          </Button>
+          {/* Neon Acknowledgment */}
+{/* Neon Acknowledgment in Glass Card */}
+<div className="mt-6 flex justify-center">
+  <div className="glass-card-neon p-3 px-4 rounded-xl text-center">
+    <p className="neon-text-dark font-bold text-sm md:text-base animate-neon-flicker">
+      Iyi app yakozwe na Friend Herve KUBANA
+    </p>
+  </div>
+</div> 
         </div>
       </main>
 

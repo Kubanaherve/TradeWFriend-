@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,7 @@ interface InventoryItem {
   cost_price: number;
 }
 
-const AddDebtPageEnhanced = () => {
+const AddDebtPageEnhanced: React.FC = () => {
   const navigate = useNavigate();
   const { customers } = useCustomerSuggestions();
 
@@ -40,8 +40,7 @@ const AddDebtPageEnhanced = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [showInventoryPopup, setShowInventoryPopup] = useState(false);
   const [popupSelectedItem, setPopupSelectedItem] = useState<InventoryItem | null>(null);
-  const [popupItemQty, setPopupItemQty] = useState<string>("");
-
+  const [popupItemQty, setPopupItemQty] = useState<string>("1");
 
   // Fetch inventory when popup opens
   useEffect(() => {
@@ -68,18 +67,20 @@ const AddDebtPageEnhanced = () => {
 
   // Confirm + Add Item
   const confirmPopupItem = () => {
-    if (!popupSelectedItem || popupItemQty < 1) return;
+    if (!popupSelectedItem) return;
+    const qty = parseInt(popupItemQty, 10);
+    if (isNaN(qty) || qty < 1) return;
 
     const newItems = [...selectedItems];
     const existingIndex = newItems.findIndex(i => i.id === popupSelectedItem.id);
 
     if (existingIndex >= 0) {
-      newItems[existingIndex].quantity += popupItemQty;
+      newItems[existingIndex].quantity += qty;
     } else {
       newItems.push({
         id: popupSelectedItem.id,
         name: popupSelectedItem.item_name,
-        quantity: popupItemQty,
+        quantity: qty,
         price: popupSelectedItem.cost_price,
       });
     }
@@ -88,7 +89,7 @@ const AddDebtPageEnhanced = () => {
     recalcAmount(newItems);
 
     setPopupSelectedItem(null);
-    setPopupItemQty(1);
+    setPopupItemQty("1");
     setShowInventoryPopup(false);
   };
 
@@ -103,7 +104,6 @@ const AddDebtPageEnhanced = () => {
     setForm(prev => ({ ...prev, amount: total.toString() }));
   };
 
-  // Handle submit (Debt or Sale)
   const handleSubmit = async () => {
     if (!form.name.trim() || selectedItems.length === 0) {
       toast.error("Uzuza ibisabwa byose");
@@ -131,11 +131,11 @@ const AddDebtPageEnhanced = () => {
 
       // 2️⃣ Update inventory stock
       for (const item of selectedItems) {
-        const currentQty = inventory.find(i => i.id === item.id)?.quantity || 0;
+        const currentQty = inventory.find(i => i.id === item.id)?.quantity ?? 0;
         await supabase.from("inventory_items").update({ quantity: currentQty - item.quantity }).eq("id", item.id);
       }
 
-      // 3️⃣ If paid, update total_paid in app_settings
+      // 3️⃣ Update total_paid if paid
       if (form.isPaid) {
         const { data: totalPaidSetting } = await supabase
           .from("app_settings")
@@ -155,31 +155,19 @@ const AddDebtPageEnhanced = () => {
 
       toast.success(labels.debtSavedSuccess + " ✨");
 
-// ✅ Send WhatsApp ONLY if azishyura nyuma
-if (!form.isPaid && form.phone) {
-  const itemsText = selectedItems
-    .map(i => `${i.name} ${i.quantity}`)
-    .join(", ");
+      // WhatsApp only if unpaid
+      if (!form.isPaid && form.phone) {
+        const itemsText = selectedItems.map(i => `${i.name} ${i.quantity}`).join(", ");
+        const message = `Muraho neza mufashe ${itemsText} muri Jeanne Friend Jewerlies totale ni: ${formatCurrency(amountValue)} murisanga!`;
 
-  const message = `Muraho neza mufashe ${itemsText} muri Jeanne Friend Jewerlies totale ni: ${formatCurrency(amountValue)} murisanga!`;
+        let cleanPhone = form.phone.replace(/\s+/g, "");
+        if (cleanPhone.startsWith("0")) cleanPhone = "25" + cleanPhone;
+        const whatsappURL = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+        window.open(whatsappURL, "_blank");
+      }
 
-  // Format Rwanda number: 078xxxx → 25078xxxx
-  let cleanPhone = form.phone.replace(/\s+/g, "");
-
-  if (cleanPhone.startsWith("0")) {
-    cleanPhone = "25" + cleanPhone;
-  }
-
-  const whatsappURL = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-
-  window.open(whatsappURL, "_blank");
-}
-
-
-      // 4️⃣ Emit event for DebtsPage to refresh
-      window.dispatchEvent(new CustomEvent("newDebtAdded", {
-        detail: { customerName: form.name, amount: amountValue, isPaid: form.isPaid }
-      }));
+      // 4️⃣ Emit event
+      window.dispatchEvent(new CustomEvent("newDebtAdded", { detail: { customerName: form.name, amount: amountValue, isPaid: form.isPaid } }));
 
       navigate("/debts");
     } catch (err) {
@@ -266,14 +254,13 @@ if (!form.isPaid && form.phone) {
               <div className="flex gap-2 items-center">
                 <span>{popupSelectedItem.item_name}</span>
                 <Input
-  type="number"
-  min={1}
-  value={popupItemQty}
-  onChange={e => setPopupItemQty(e.target.value)}
-  placeholder="Qty"
-  className="bg-white/50 w-20 input-glow"
-/>
-
+                  type="number"
+                  min={1}
+                  value={popupItemQty}
+                  onChange={e => setPopupItemQty(e.target.value)}
+                  placeholder="Qty"
+                  className="bg-white/50 w-20 input-glow"
+                />
                 <Button onClick={confirmPopupItem} className="btn-gold flex-1">OK</Button>
               </div>
             )}

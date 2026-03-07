@@ -270,3 +270,75 @@
     100% { background-position: 200% 0; }
   }
 }
+/* Glass Neon Card - subtle glow */
+.glass-card-neon {
+  @apply relative overflow-hidden rounded-2xl border border-white/20 bg-black/70 shadow-lg backdrop-blur-lg flex items-center justify-center;
+  box-shadow: 
+    0 0 4px hsl(180 80% 50% / 0.15),
+    0 0 8px hsl(180 80% 50% / 0.08);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-card-neon:hover {
+  transform: translateY(-1px);
+  box-shadow: 
+    0 0 6px hsl(180 80% 50% / 0.18),
+    0 0 12px hsl(180 80% 50% / 0.1);
+}
+
+/* Neon Text - subtle */
+.neon-text-dark {
+  color: hsl(180, 80%, 55%);
+  text-shadow:
+    0 0 1px hsl(180, 80%, 55%),
+    0 0 2px hsl(180, 80%, 50%);
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 2px solid hsl(180, 80%, 55%);
+  box-sizing: border-box;
+}
+
+/* Typing Animation Loop with 10s wait */
+.animate-typing-loop {
+  display: inline-block;
+  width: 0;
+  animation: typing 3s steps(30, end) 1 forwards, 
+             pause 10s linear 1 forwards,
+             typing-reverse 3s steps(30, end) 1 forwards;
+  animation-iteration-count: infinite;
+  animation-delay: 0s, 3s, 13s; /* typing, pause, erase */
+}
+
+/* Typing keyframes */
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+/* Pause keyframe (do nothing) */
+@keyframes pause {
+  from { width: 100%; }
+  to { width: 100%; }
+}
+
+/* Erase keyframes */
+@keyframes typing-reverse {
+  from { width: 100%; }
+  to { width: 0; }
+}
+
+/* Cursor blink */
+.neon-text-dark::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  background-color: hsl(180, 80%, 55%);
+  animation: blink 0.7s step-end infinite alternate;
+}
+
+@keyframes blink {
+  0%, 50%, 100% { opacity: 1; }
+  25%, 75% { opacity: 0; }
+}

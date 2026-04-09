@@ -1,7 +1,19 @@
 // DashboardPage.tsx
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { labels, formatCurrency } from "@/lib/kinyarwanda";
+import {
+  DAILY_CUSTOMER_PAYMENTS_PREFIX,
+  DAILY_NEW_DEBT_PREFIX, // Ongeraho iyi kugira ngo dufate ideni rishya neza
+  getDateKeyFromIso,
+} from "@/lib/reporting";
+import {
+  buildDebtAlerts,
+  notifyDebtAlerts,
+  notifyIfInactiveForTenHours,
+  recordAppActivity,
+  type DebtAlertCustomer,
+} from "@/lib/debtAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -13,12 +25,10 @@ import {
   Gem,
   Users,
   Package,
-  Edit3,
   Save,
-  X,
   Download,
   Trash2,
-  AlertTriangle
+  Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,19 +46,29 @@ interface DashboardStats {
   totalUnpaid: number;
   totalCustomers: number;
   totalSales: number;
-  totalCapital: number;
+  todaySales: number;
+  todayDebt: number;
 }
+
+// 🚀 PRO CACHE MEMORY: Yerekana imibare ako kanya 
+const loadCachedStats = (): DashboardStats => {
+  const cached = localStorage.getItem("dashboard_stats_cache");
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch (e) {
+      console.error("Cache parsing error", e);
+    }
+  }
+  return { totalUnpaid: 0, totalCustomers: 0, totalSales: 0, todaySales: 0, todayDebt: 0 };
+};
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile, logout, isAuthenticated, isLoading: authLoading } = useAuth();
 
-  const [stats, setStats] = useState<DashboardStats>({
-    totalUnpaid: 0,
-    totalCustomers: 0,
-    totalSales: 0,
-    totalCapital: 0,
-  });
+  const [stats, setStats] = useState<DashboardStats>(loadCachedStats);
 
   const [showCapitalModal, setShowCapitalModal] = useState(false);
   const [showResetMoneyModal, setShowResetMoneyModal] = useState(false);
@@ -61,58 +81,128 @@ const DashboardPage = () => {
   const [isResetting, setIsResetting] = useState(false);
   const [isFactoryResetting, setIsFactoryResetting] = useState(false);
 
-  // --- Updated fetchStats to include paid debts from add debt and debts page ---
-  const fetchStats = async () => {
+  // 🚀 Logic ihuje neza n'iya ReportsPage.tsx kugira imibare ibe kimwe 100%
+  const fetchStats = useCallback(async () => {
     try {
-      // --- Fetch all sales ---
-      const { data: salesData } = await supabase
-        .from("sales")
-        .select("sale_price, quantity");
+      const todayKey = getDateKeyFromIso(new Date().toISOString());
 
-      const salesTotal = (salesData || []).reduce(
-        (sum, s) => sum + (Number(s.sale_price) || 0) * (Number(s.quantity) || 0),
-        0
-      );
+      const [
+        { data: salesData, error: salesError },
+        { data: customers, error: customersError },
+        { data: settingsData, error: settingsError },
+      ] = await Promise.all([
+        supabase.from("sales").select("sale_price, quantity, created_at"),
+        supabase.from("customers").select("id, name, phone, amount, is_paid, created_at, due_date"),
+        supabase.from("app_settings").select("setting_key, setting_value"),
+      ]);
 
-      // --- Fetch all customers (for debts) ---
-      const { data: customers } = await supabase.from("customers").select("amount, is_paid");
+      if (salesError) throw salesError;
+      if (customersError) throw customersError;
+      if (settingsError) throw settingsError;
 
-      // Total unpaid debts
-      const totalUnpaid = (customers || [])
-        .filter(c => !c.is_paid)
-        .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+      // 1. Ubucuruzi (Sales Table)
+      let salesTotalAllTime = 0;
+      let salesTodayOnly = 0;
 
-      // Total customers
+      (salesData || []).forEach((sale) => {
+        const saleAmount = (Number(sale.sale_price) || 0) * (Number(sale.quantity) || 0);
+        salesTotalAllTime += saleAmount;
+        if (getDateKeyFromIso(sale.created_at) === todayKey) {
+          salesTodayOnly += saleAmount;
+        }
+      });
+
+      // 2. Abakiriya (Customers Table)
+      const totalUnpaid = (customers || []).reduce((sum, customer) => {
+        return customer.is_paid ? sum : sum + Number(customer.amount || 0);
+      }, 0);
       const totalCustomers = (customers || []).length;
 
-      // Total paid debts
-      const paidDebtsTotal = (customers || [])
-        .filter(c => c.is_paid)
-        .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+      // 3. Settings (Total Paid, Debts Paid Today, New Debt Today)
+      const settingsMap = (settingsData || []).reduce<Record<string, number>>(
+        (acc, row) => {
+          acc[row.setting_key] = Number(row.setting_value) || 0;
+          return acc;
+        },
+        {}
+      );
 
-      // --- Fetch total capital ---
-      const { data: capitalSetting } = await supabase
-        .from("app_settings")
-        .select("setting_value")
-        .eq("setting_key", "total_capital")
-        .maybeSingle();
-      const totalCapital = capitalSetting ? parseFloat(capitalSetting.setting_value) : 0;
+      const totalPaidAllTime = settingsMap["total_paid"] || 0;
+      const debtsPaidToday = settingsMap[`${DAILY_CUSTOMER_PAYMENTS_PREFIX}${todayKey}`] || 0;
+      
+      // 🚀 Efficient & accurate: calculate today's debt directly from database
+      let newDebtToday = 0;
 
-      // --- Total sales = sales from sales table + paid debts ---
-      const totalSales = salesTotal + paidDebtsTotal;
+      (customers || []).forEach((customer) => {
+        if (
+          !customer.is_paid &&
+          getDateKeyFromIso(customer.created_at) === todayKey
+        ) {
+          newDebtToday += Number(customer.amount || 0);
+        }
+      });
 
-      setStats({ totalUnpaid, totalCustomers, totalSales, totalCapital });
-      setCapitalInput(totalCapital.toString());
+      // 4. Kuvanga imibare
+      const newStats = {
+        totalUnpaid,
+        totalCustomers,
+        totalSales: salesTotalAllTime + totalPaidAllTime,
+        todaySales: salesTodayOnly + debtsPaidToday, // Ibyo wacuruje + Ideni ryishyuwe uyu munsi
+        todayDebt: newDebtToday, // Ideni watanze uyu munsi
+      };
+
+      // 🚀 Save state and Update Cache Instantly
+      setStats(newStats);
+      localStorage.setItem("dashboard_stats_cache", JSON.stringify(newStats));
+
+      await notifyDebtAlerts(buildDebtAlerts((customers || []) as DebtAlertCustomer[]));
     } catch (error) {
       console.error("Fetch stats error:", error);
-      toast.error("Habaye ikosa mu kubona statistics");
     }
-  };
+  }, []);
 
+  // Handle Authentication and Mount
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) navigate("/");
-    if (isAuthenticated) fetchStats();
-  }, [isAuthenticated, authLoading, navigate]);
+    if (!authLoading && !isAuthenticated) {
+      navigate("/");
+      return;
+    }
+    if (isAuthenticated) {
+      fetchStats();
+    }
+  }, [isAuthenticated, authLoading, navigate, fetchStats, location.pathname]);
+
+  // 🚀 Auto-Reload Events: Iyi code ituma ihita yi-reloada ugiye mu yindi page ukagaruka cyangwa ukoze action
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    notifyIfInactiveForTenHours();
+    recordAppActivity();
+
+    const handleAutoRefresh = () => {
+      recordAppActivity();
+      fetchStats(); 
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleAutoRefresh();
+      }
+    };
+
+    // Buri gihe hishyuwe cyangwa ideni rishyizwemo, hitamo kuvugurura imibare ako kanya
+    window.addEventListener("paymentMade", handleAutoRefresh);
+    window.addEventListener("newDebtAdded", handleAutoRefresh);
+    window.addEventListener("focus", handleAutoRefresh);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("paymentMade", handleAutoRefresh);
+      window.removeEventListener("newDebtAdded", handleAutoRefresh);
+      window.removeEventListener("focus", handleAutoRefresh);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isAuthenticated, fetchStats]);
 
   const handleSaveCapital = async () => {
     if (!capitalInput || parseFloat(capitalInput) < 0) {
@@ -199,14 +289,13 @@ const DashboardPage = () => {
     navigate("/");
   };
 
-  const totalProfit = stats.totalSales - stats.totalCapital;
-
   const menuItems = [
     { icon: Plus, label: labels.addDebt, path: "/add-debt", bgClass: "bg-gradient-to-br from-primary to-navy-light", description: "Ongeraho umukiriya" },
     { icon: List, label: labels.debtList, path: "/debts", bgClass: "bg-gradient-to-br from-secondary to-gold-light", textDark: true, description: "Reba abakiriya bose" },
     { icon: TrendingUp, label: labels.salesTracking, path: "/sales", bgClass: "bg-gradient-to-br from-navy-light to-primary", description: "Kurikiranira ibigurishwa" },
     { icon: Package, label: labels.inventoryTitle, path: "/inventory", bgClass: "bg-gradient-to-br from-gold-light to-secondary", textDark: true, description: labels.inventorySubtitle },
     { icon: Users, label: "Abakiriya", path: "/clients", bgClass: "bg-gradient-to-br from-emerald-500 to-teal-600", description: "Amakuru y'abakiriya" },
+    { icon: Bell, label: "Ubutumwa", path: "/inbox", bgClass: "bg-gradient-to-br from-rose-500 to-orange-500", description: "Ubutumwa bw'amadeni" },
   ];
 
   return (
@@ -256,16 +345,30 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Capital Card */}
-        <div className="glass-card p-4 animate-fade-in cursor-pointer hover:scale-[1.02] transition-transform" style={{ animationDelay: '0.15s' }} onClick={() => setShowCapitalModal(true)}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center"><DollarSign size={16} className="text-orange-600" /></div>
-              <span className="text-[10px] text-muted-foreground">Capital (Ibyo waguzemo)</span>
+       {/* TODAY SALES */}
+        <div className="glass-card p-4 border-2 border-green-400/30">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
+              <TrendingUp size={16} className="text-green-600" />
             </div>
-            <Edit3 size={14} className="text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground">Ibyo wacuruje uyu munsi</span>
           </div>
-          <p className="text-lg font-bold text-orange-600">{formatCurrency(stats.totalCapital)}</p>
+          <p className="text-lg font-bold text-green-600">
+            {formatCurrency(stats.todaySales)}
+          </p>
+        </div>
+
+        {/* TODAY DEBT */}
+        <div className="glass-card p-4 border-2 border-red-400/20">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+              <DollarSign size={16} className="text-red-600" />
+            </div>
+            <span className="text-[10px] text-muted-foreground">Ideni ryose watanze uyu munsi</span>
+          </div>
+          <p className="text-lg font-bold text-red-600">
+            {formatCurrency(stats.todayDebt)}
+          </p>
         </div>
 
         {/* Total Sales Card */}
@@ -332,14 +435,13 @@ const DashboardPage = () => {
           </Button>
 
           {/* Neon Acknowledgment */}
-{/* Neon Acknowledgment in Glass Card */}
-<div className="mt-6 flex justify-center">
-  <div className="glass-card-neon p-3 px-4 rounded-xl text-center">
-    <p className="neon-text-dark font-bold text-sm md:text-base animate-neon-flicker">
-      Iyi app yakozwe na Friend Herve KUBANA
-    </p>
-  </div>
-</div> 
+          <div className="mt-6 flex justify-center">
+            <div className="glass-card-neon p-3 px-4 rounded-xl text-center">
+              <p className="neon-text-dark font-bold text-sm md:text-base animate-neon-flicker">
+                Iyi app yakozwe na Friend Herve KUBANA
+              </p>
+            </div>
+          </div> 
         </div>
       </main>
 

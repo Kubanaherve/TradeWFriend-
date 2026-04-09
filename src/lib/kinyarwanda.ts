@@ -1,3 +1,5 @@
+import { Inbox } from "lucide-react";
+
 // Kinyarwanda labels dictionary
 export const labels = {
   // Auth & Navigation
@@ -11,8 +13,8 @@ export const labels = {
   dashboard: "Ibikubiye",
   addDebt: "Ongeraho Ideni",
   debtList: "Urutonde rw'Abafite Ideni",
-  salesTracking: "Gukurikirana Ibyagurishijwe",
-  inventoryTitle: "Ibyo Yazanye",
+  salesTracking: "Raporo Irambuye",
+  inventoryTitle: "Ibyo naranguye",
   inventorySubtitle: "Ibintu byose yaguze i Benin",
   addInventoryItem: "Ongeraho Ikintu",
   noInventory: "Nta kintu kihari",
@@ -29,6 +31,7 @@ export const labels = {
   willPayLater: "Azishyura nyuma",
   paid: "Yishyuye",
   unpaid: "Ntarishyura",
+  Inbox: "Ubutumwa",
   
   // Sales Fields
   itemName: "Izina rya Bijoux",

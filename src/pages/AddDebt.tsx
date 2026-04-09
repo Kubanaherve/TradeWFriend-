@@ -6,6 +6,12 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { labels, formatCurrency } from "@/lib/kinyarwanda";
+import {
+  DAILY_CUSTOMER_PAYMENTS_PREFIX,
+  DAILY_NEW_DEBT_PREFIX,
+  getDateKeyFromIso,
+  incrementAppSettingAmount,
+} from "@/lib/reporting";
 import { ArrowLeft, Save, X } from "lucide-react";
 import { CustomerAutocomplete } from "@/components/CustomerAutocomplete";
 import { useCustomerSuggestions } from "@/hooks/useCustomerSuggestions";
@@ -104,79 +110,94 @@ const AddDebtPageEnhanced: React.FC = () => {
     setForm(prev => ({ ...prev, amount: total.toString() }));
   };
 
-  const handleSubmit = async () => {
-    if (!form.name.trim() || selectedItems.length === 0) {
-      toast.error("Uzuza ibisabwa byose");
-      return;
+ const handleSubmit = async () => {
+  if (!form.name.trim() || selectedItems.length === 0) {
+    toast.error("Uzuza ibisabwa byose");
+    return;
+  }
+
+  const amountValue = parseFloat(form.amount);
+  const nowISO = new Date().toISOString();
+  const todayKey = getDateKeyFromIso(nowISO);
+
+  // ✅ WhatsApp (must stay BEFORE async)
+  if (!form.isPaid && form.phone) {
+    const itemsText = selectedItems.map(i => `${i.name} x${i.quantity}`).join(", ");
+    const message = `Muraho neza mufashe ${itemsText} muri Jeanne Friend Jewerlies totale ni: ${formatCurrency(amountValue)} murisanga!`;
+
+    let cleanPhone = form.phone.replace(/\s+/g, "");
+    if (cleanPhone.startsWith("0")) cleanPhone = "25" + cleanPhone;
+
+    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, "_blank");
+  }
+
+  setIsLoading(true);
+
+  try {
+    // ✅ 1. INSERT CUSTOMER / DEBT
+    const { error: insertError } = await supabase.from("customers").insert([
+      {
+        name: form.name.trim(),
+        phone: form.phone.trim() || null,
+        items: JSON.stringify(selectedItems.map(i => `${i.name} ${i.quantity}`)),
+        amount: amountValue,
+        due_date: form.dueDate,
+        is_paid: form.isPaid,
+        paid_at: form.isPaid ? nowISO : null,
+        created_at: nowISO, // ✅ IMPORTANT (used by dashboard)
+      },
+    ]);
+
+    if (insertError) throw insertError;
+
+    // ✅ 2. UPDATE INVENTORY
+    for (const item of selectedItems) {
+      const currentQty = inventory.find(i => i.id === item.id)?.quantity ?? 0;
+
+      const { error } = await supabase
+        .from("inventory_items")
+        .update({ quantity: currentQty - item.quantity })
+        .eq("id", item.id);
+
+      if (error) throw error;
     }
 
-    setIsLoading(true);
+    // ✅ 3. UPDATE REPORTING TOTALS
+    if (form.isPaid) {
+      await incrementAppSettingAmount("total_paid", amountValue);
+      await incrementAppSettingAmount(
+        `${DAILY_CUSTOMER_PAYMENTS_PREFIX}${todayKey}`,
+        amountValue
+      );
+    } else {
+      await incrementAppSettingAmount(
+        `${DAILY_NEW_DEBT_PREFIX}${todayKey}`,
+        amountValue
+      );
+    }
 
-    try {
-      const amountValue = parseFloat(form.amount);
+    // ✅ SUCCESS
+    toast.success(labels.debtSavedSuccess + " ✨");
 
-      // 1️⃣ Insert debt or sale
-      const { error: insertError } = await supabase.from("customers").insert([
-        {
-          name: form.name.trim(),
-          phone: form.phone.trim() || null,
-          items: JSON.stringify(selectedItems.map(i => `${i.name} ${i.quantity}`)),
+    // ✅ REAL-TIME DASHBOARD UPDATE
+    window.dispatchEvent(
+      new CustomEvent("newDebtAdded", {
+        detail: {
+          customerName: form.name,
           amount: amountValue,
-          due_date: form.dueDate,
-          is_paid: form.isPaid,
-          paid_at: form.isPaid ? new Date().toISOString() : null,
+          isPaid: form.isPaid,
         },
-      ]);
-      if (insertError) throw insertError;
+      })
+    );
 
-      // 2️⃣ Update inventory stock
-      for (const item of selectedItems) {
-        const currentQty = inventory.find(i => i.id === item.id)?.quantity ?? 0;
-        await supabase.from("inventory_items").update({ quantity: currentQty - item.quantity }).eq("id", item.id);
-      }
-
-      // 3️⃣ Update total_paid if paid
-      if (form.isPaid) {
-        const { data: totalPaidSetting } = await supabase
-          .from("app_settings")
-          .select("setting_value")
-          .eq("setting_key", "total_paid")
-          .maybeSingle();
-
-        const currentTotalPaid = totalPaidSetting ? parseFloat(totalPaidSetting.setting_value) : 0;
-        const updatedTotalPaid = currentTotalPaid + amountValue;
-
-        if (totalPaidSetting) {
-          await supabase.from("app_settings").update({ setting_value: updatedTotalPaid.toString() }).eq("setting_key", "total_paid");
-        } else {
-          await supabase.from("app_settings").insert({ setting_key: "total_paid", setting_value: updatedTotalPaid.toString() });
-        }
-      }
-
-      toast.success(labels.debtSavedSuccess + " ✨");
-
-      // WhatsApp only if unpaid
-      if (!form.isPaid && form.phone) {
-        const itemsText = selectedItems.map(i => `${i.name} ${i.quantity}`).join(", ");
-        const message = `Muraho neza mufashe ${itemsText} muri Jeanne Friend Jewerlies totale ni: ${formatCurrency(amountValue)} murisanga!`;
-
-        let cleanPhone = form.phone.replace(/\s+/g, "");
-        if (cleanPhone.startsWith("0")) cleanPhone = "25" + cleanPhone;
-        const whatsappURL = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-        window.open(whatsappURL, "_blank");
-      }
-
-      // 4️⃣ Emit event
-      window.dispatchEvent(new CustomEvent("newDebtAdded", { detail: { customerName: form.name, amount: amountValue, isPaid: form.isPaid } }));
-
-      navigate("/debts");
-    } catch (err) {
-      console.error(err);
-      toast.error("Habaye ikosa mu kubika umukiriya");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    navigate("/debts");
+  } catch (err) {
+    console.error(err);
+    toast.error("Habaye ikosa mu kubika umukiriya");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted to-background p-4">

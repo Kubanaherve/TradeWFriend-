@@ -6,20 +6,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { hashPin, saveLocalAccount, findLocalAccount } from "@/lib/localAuth";
 
 export function ChangePinCard() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<"current" | "new" | "confirm">("current");
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
-  const formatPhoneToEmail = (phoneNumber: string): string => {
-    const cleanPhone = phoneNumber.replace(/\D/g, '');
-    return `${cleanPhone}@phone.local`;
-  };
 
   const resetForm = () => {
     setStep("current");
@@ -47,16 +43,32 @@ export function ChangePinCard() {
 
     setIsLoading(true);
     try {
-      const email = formatPhoneToEmail(profile.phone);
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password: currentPin,
-      });
+      if (user) {
+        const email = `${profile.phone.replace(/\D/g, '')}@phone.local`;
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password: currentPin,
+        });
 
-      if (error) {
-        toast.error("PIN yubwa sibyo");
-        setIsLoading(false);
-        return;
+        if (error) {
+          toast.error("PIN yubwa sibyo");
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        const account = findLocalAccount(profile.phone);
+        if (!account) {
+          toast.error("Konti yawe ntiyabonetse");
+          setIsLoading(false);
+          return;
+        }
+
+        const hash = await hashPin(currentPin);
+        if (hash !== account.pinHash) {
+          toast.error("PIN yubwa sibyo");
+          setIsLoading(false);
+          return;
+        }
       }
 
       setStep("new");
@@ -84,14 +96,25 @@ export function ChangePinCard() {
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPin,
-      });
+      if (user) {
+        const { error } = await supabase.auth.updateUser({
+          password: newPin,
+        });
 
-      if (error) {
-        toast.error("Ntibyashobotse guhindura PIN: " + error.message);
-        setIsLoading(false);
-        return;
+        if (error) {
+          toast.error("Ntibyashobotse guhindura PIN: " + error.message);
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        if (!profile?.phone) {
+          toast.error("Ntibishoboka guhindura PIN");
+          setIsLoading(false);
+          return;
+        }
+
+        const displayName = profile.display_name || profile.phone;
+        await saveLocalAccount(profile.phone, displayName, newPin);
       }
 
       toast.success("PIN yahinduwe neza! 🎉");

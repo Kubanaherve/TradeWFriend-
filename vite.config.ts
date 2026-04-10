@@ -20,9 +20,9 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "logo.png"],
       manifest: {
-        name: "Jeanne Friend Jewelry",
-        short_name: "JF Jewelry",
-        description: "Gukurikirana amadeni n'ibigurishwa bya bijoux",
+        name: "TradeWFriend+",
+        short_name: "TradeWFriend+",
+        description: "Track your business transactions and inventory",
         theme_color: "#1e3a5f",
         background_color: "#f8f6f3",
         display: "standalone",

@@ -13,6 +13,7 @@ import InventoryPage from "./pages/Inventory";
 import InstallPage from "./pages/Install";
 import ClientsPage from "./pages/Clients";
 import InboxPage from "./pages/Inbox";
+import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/install" element={<InstallPage />} />
             <Route path="/clients" element={<ClientsPage />} />
             <Route path="/inbox" element={<InboxPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

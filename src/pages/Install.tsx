@@ -62,10 +62,10 @@ const InstallPage = () => {
         <div className="glass-card text-center animate-fade-in">
           {/* Logo */}
           <div className="w-20 h-20 mx-auto mb-6 rounded-2xl overflow-hidden shadow-lg">
-            <img src={logo} alt="JF Jewelry" className="w-full h-full object-cover" />
+            <img src={logo} alt="TradeWFriend+" className="w-full h-full object-cover" />
           </div>
 
-          <h1 className="text-xl font-bold mb-2">Jeanne Friend Jewelry</h1>
+          <h1 className="text-xl font-bold mb-2">TradeWFriend+</h1>
           <p className="text-muted-foreground text-sm mb-8">
             Install app kuri telefone yawe
           </p>

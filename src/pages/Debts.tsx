@@ -188,7 +188,7 @@ const DebtsPage = () => {
           doc.setFont("helvetica", "bold");
           doc.setFontSize(15);
           doc.setTextColor(255, 255, 255);
-          doc.text("Jeanne Friend Jewerlies", pageW / 2, 10, { align: "center" });
+          doc.text("TradeWFriend+", pageW / 2, 10, { align: "center" });
 
           doc.setFont("helvetica", "normal");
           doc.setFontSize(8.5);
@@ -206,7 +206,7 @@ const DebtsPage = () => {
           doc.setFontSize(8.5);
           doc.setTextColor(255, 255, 255);
           doc.text(
-            "Jeanne Friend Jewerlies — Raporo y'Ideni (ikurikira)",
+            "TradeWFriend+ — Raporo y'Ideni (ikurikira)",
             pageW / 2, 8, { align: "center" }
           );
         }
@@ -353,7 +353,7 @@ const DebtsPage = () => {
           doc.setFontSize(7);
           doc.setTextColor(170, 170, 170);
           doc.text(
-            `Urupapuro ${pageNum}  |  Abakiriya ${list.length}  |  ${formatCurrency(grandTotal)}  |  Jeanne Friend Jewerlies`,
+            `Urupapuro ${pageNum}  |  Abakiriya ${list.length}  |  ${formatCurrency(grandTotal)}  |  TradeWFriend+`,
             pageW / 2,
             pageH - 5,
             { align: "center" }
@@ -362,7 +362,7 @@ const DebtsPage = () => {
       });
 
       // ── Save directly as .pdf ──────────────────────────────────────────────
-      const filename = `ideni-jeanne-${new Date().toISOString().split("T")[0]}.pdf`;
+      const filename = `debts-tradewfriend-${new Date().toISOString().split("T")[0]}.pdf`;
       doc.save(filename);
 
       toast.success(`PDF y'abakiriya ${list.length} yamanitswe! ✨`);

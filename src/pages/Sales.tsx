@@ -197,7 +197,58 @@ const ReportsPage = () => {
       MONTH_LABELS[date.getMonth()]
     } ${date.getFullYear()}`;
   };
+  const deleteTodayData = async () => {
+  const confirm = window.confirm(
+    "Ugiye gusiba amafaranga yose y'uyu munsi (sales n'amadeni). Uzi neza?"
+  );
 
+  if (!confirm) return;
+
+  try {
+    const todayKey = getDateKeyFromIso(new Date().toISOString());
+    const start = new Date(`${todayKey}T00:00:00`);
+    const end = new Date(`${todayKey}T23:59:59.999`);
+
+    // 1. Delete today's sales
+    const { error: salesError } = await supabase
+      .from("sales")
+      .delete()
+      .gte("created_at", start.toISOString())
+      .lte("created_at", end.toISOString());
+
+    if (salesError) throw salesError;
+
+    // 2. Delete today's debt/payment settings
+    const { data: settings } = await supabase
+      .from("app_settings")
+      .select("setting_key");
+
+    const todayDebtKeys =
+      (settings || [])
+        .map((s) => s.setting_key)
+        .filter(
+          (key) =>
+            key.startsWith(DAILY_CUSTOMER_PAYMENTS_PREFIX + todayKey) ||
+            key.startsWith(DAILY_NEW_DEBT_PREFIX + todayKey)
+        );
+
+    if (todayDebtKeys.length > 0) {
+      const { error: settingsDeleteError } = await supabase
+        .from("app_settings")
+        .delete()
+        .in("setting_key", todayDebtKeys);
+
+      if (settingsDeleteError) throw settingsDeleteError;
+    }
+
+    toast.success("Amakuru y'uyu munsi yasibwe neza");
+
+    fetchReports();
+  } catch (error) {
+    console.error(error);
+    toast.error("Habaye ikibazo mu gusiba data y'uyu munsi");
+  }
+};
   const downloadCSV = () => {
     const header =
       "Itariki,Amafaranga y'Ubucuruzi,Amafaranga y'Ideni Ryishyuwe,Ideni Ritarishyurwa,Igiteranyo Cyinjiye,Igiteranyo Gitegerejwe\n";
@@ -250,6 +301,14 @@ const ReportsPage = () => {
           <Download size={14} />
           CSV
         </Button>
+        <Button
+  onClick={deleteTodayData}
+  size="sm"
+  variant="destructive"
+  className="h-8 px-3 text-xs gap-1"
+>
+  Siba Uyu Munsi
+</Button>
       </header>
 
       <main className="p-4 max-w-lg mx-auto space-y-4">

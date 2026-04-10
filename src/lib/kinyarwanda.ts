@@ -15,7 +15,7 @@ export const labels = {
   debtList: "Urutonde rw'Abafite Ideni",
   salesTracking: "Raporo Irambuye",
   inventoryTitle: "Ibyo naranguye",
-  inventorySubtitle: "Ibintu byose yaguze i Benin",
+  inventorySubtitle: "Ibintu byose yaguze",
   addInventoryItem: "Ongeraho Ikintu",
   noInventory: "Nta kintu kihari",
   totalUnpaid: "Amafaranga yose atarishyurwa",
@@ -23,7 +23,7 @@ export const labels = {
   // Customer & Debt Fields
   customerName: "Izina ry'umukiriya",
   phoneNumber: "Numero ya Telefone",
-  itemsTaken: "Bijoux Zatwawe",
+  itemsTaken: "Ibintu Byatwawe",
   amount: "Amafaranga",
   dueDate: "Itariki yo Kwishyura",
   dateTaken: "Itariki yo gufata",
@@ -34,7 +34,7 @@ export const labels = {
   Inbox: "Ubutumwa",
   
   // Sales Fields
-  itemName: "Izina rya Bijoux",
+  itemName: "Izina ry'Ikintu",
   costPrice: "Igiciro cyo Kugura",
   salePrice: "Igiciro cyo Kugurisha",
   quantity: "Umubare",
@@ -75,21 +75,21 @@ export const labels = {
   invalidPin: "PIN ntiyemera",
   
   // App Info
-  appName: "Jeanne Friend Jewelry",
-  jewelryBusiness: "Ubucuruzi bwa Bijoux",
+  appName: "TradeWFriend+",
+  jewelryBusiness: "Ubucuruzi",
 } as const;
 
 // SMS message templates
 export const smsTemplates = {
   // Immediate SMS after saving debt
   debtConfirmation: (items: string, amount: string) => 
-    `Muraho mufashe ${items} amafaranga muzishyura ni ${amount} FRW. Murakoze cyane!`,
+    `Muraho, wampaye ${items}. Amafaranga muzishyura ni ${amount} FRW. Murakoze cyane!`,
   
   // Optional reminder SMS
   debtReminder: (items: string, amount: string) => 
-    ` Muraho neza! Wampaye kuri cash nshuti. Merci!!
+    ` Muraho neza! Uzayishyura kuri ${items}. Merci!!
   
-  (${items}) amafaranga totale ni: (${amount} FRW)`,
+  Amafaranga totale ni: ${amount} FRW`,
   
   // Cash acknowledgment
   cashAcknowledgment: () => 

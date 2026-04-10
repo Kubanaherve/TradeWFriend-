@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { labels, formatCurrency } from "@/lib/kinyarwanda";
+import { useBusinessSettings } from "@/hooks/useBusinessSettings";
 import {
   DAILY_CUSTOMER_PAYMENTS_PREFIX,
   DAILY_NEW_DEBT_PREFIX, // Ongeraho iyi kugira ngo dufate ideni rishya neza
@@ -28,6 +29,7 @@ import {
   Save,
   Download,
   Trash2,
+  Settings,
   Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -67,6 +69,7 @@ const DashboardPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, logout, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { settings: businessSettings } = useBusinessSettings();
 
   const [stats, setStats] = useState<DashboardStats>(loadCachedStats);
 
@@ -296,6 +299,7 @@ const DashboardPage = () => {
     { icon: Package, label: labels.inventoryTitle, path: "/inventory", bgClass: "bg-gradient-to-br from-gold-light to-secondary", textDark: true, description: labels.inventorySubtitle },
     { icon: Users, label: "Abakiriya", path: "/clients", bgClass: "bg-gradient-to-br from-emerald-500 to-teal-600", description: "Amakuru y'abakiriya" },
     { icon: Bell, label: "Ubutumwa", path: "/inbox", bgClass: "bg-gradient-to-br from-rose-500 to-orange-500", description: "Ubutumwa bw'amadeni" },
+    { icon: Settings, label: "Settings", path: "/settings", bgClass: "bg-gradient-to-br from-slate-600 to-slate-700", description: "Business settings & reset" },
   ];
 
   return (
@@ -306,9 +310,9 @@ const DashboardPage = () => {
           <div className="flex items-center gap-3">
             <img src={logo} alt="Logo" className="w-10 h-10 object-contain" />
             <div>
-              <h1 className="text-sm font-bold text-foreground">{labels.appName}</h1>
+              <h1 className="text-sm font-bold text-foreground">{businessSettings.businessName}</h1>
               <p className="text-[10px] text-muted-foreground">
-                {labels.welcome}, {profile?.display_name || 'User'}! 💎
+                {labels.welcome}, {profile?.display_name || 'User'}! 📊
               </p>
             </div>
           </div>

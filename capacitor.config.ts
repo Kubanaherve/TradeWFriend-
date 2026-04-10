@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.jeannefriend.jewerlies',
-  appName: 'jeanneFriend-Jewerlies',
+  appId: 'com.tradewfriend.plus',
+  appName: 'TradeWFriend+',
   webDir: 'dist'
 };
 

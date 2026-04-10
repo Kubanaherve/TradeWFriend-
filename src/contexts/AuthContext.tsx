@@ -1,6 +1,13 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { User, Session } from '@supabase/supabase-js';
+import { User } from '@supabase/supabase-js';
+import {
+  getCurrentLocalAccount,
+  findLocalAccount,
+  LocalAuthAccount,
+  setCurrentLocalAccount,
+  clearCurrentLocalAccount,
+} from '@/lib/localAuth';
 
 interface Profile {
   id: string;
@@ -14,6 +21,7 @@ interface AuthContextType {
   profile: Profile | null;
   isLoading: boolean;
   logout: () => Promise<void>;
+  loginLocal: (profile: Profile) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [localAuth, setLocalAuth] = useState(false);
 
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
@@ -36,25 +45,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null);
-        
+      async (_, session) => {
         if (session?.user) {
-          // Use setTimeout to avoid potential deadlock with Supabase client
+          setUser(session.user);
+          setLocalAuth(false);
           setTimeout(() => fetchProfile(session.user.id), 0);
         } else {
-          setProfile(null);
+          setUser(null);
+          const currentPhone = getCurrentLocalAccount();
+          if (currentPhone) {
+            const account = findLocalAccount(currentPhone);
+            if (account) {
+              setLocalAuth(true);
+              setProfile({
+                id: account.phone,
+                phone: account.phone,
+                display_name: account.displayName,
+              });
+            } else {
+              setLocalAuth(false);
+              setProfile(null);
+            }
+          } else {
+            setLocalAuth(false);
+            setProfile(null);
+          }
         }
-        
         setIsLoading(false);
       }
     );
 
     // THEN check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
       if (session?.user) {
+        setUser(session.user);
+        setLocalAuth(false);
         fetchProfile(session.user.id);
+      } else {
+        setUser(null);
+        const currentPhone = getCurrentLocalAccount();
+        if (currentPhone) {
+          const account = findLocalAccount(currentPhone);
+          if (account) {
+            setLocalAuth(true);
+            setProfile({
+              id: account.phone,
+              phone: account.phone,
+              display_name: account.displayName,
+            });
+          }
+        }
       }
       setIsLoading(false);
     });
@@ -63,18 +103,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut().catch(() => undefined);
+    clearCurrentLocalAccount();
     setUser(null);
     setProfile(null);
+    setLocalAuth(false);
+  }, []);
+
+  const loginLocal = useCallback((profile: Profile) => {
+    setUser(null);
+    setLocalAuth(true);
+    setProfile(profile);
+    setCurrentLocalAccount(profile.phone);
+    setIsLoading(false);
   }, []);
 
   return (
     <AuthContext.Provider value={{ 
-      isAuthenticated: !!user, 
+      isAuthenticated: !!user || localAuth, 
       user, 
       profile,
       isLoading,
-      logout 
+      logout,
+      loginLocal,
     }}>
       {children}
     </AuthContext.Provider>

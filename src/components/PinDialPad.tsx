@@ -16,10 +16,8 @@ export function PinDialPad({ onComplete, isLoading, displayName }: PinDialPadPro
     if (pin.length < maxLength) {
       const newPin = pin + digit;
       setPin(newPin);
-      
-      // Auto-submit when 5+ digits entered
-      if (newPin.length >= 5) {
-        // Small delay to show the last dot
+
+      if (newPin.length === maxLength) {
         setTimeout(() => onComplete(newPin), 150);
       }
     }
@@ -80,7 +78,7 @@ export function PinDialPad({ onComplete, isLoading, displayName }: PinDialPadPro
                 onClick={handleDelete}
                 onDoubleClick={handleClear}
                 disabled={isLoading || pin.length === 0}
-                className="w-16 h-16 rounded-full flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20 transition-all disabled:opacity-30 mx-auto"
+                className="w-16 h-16 rounded-full flex items-center justify-center text-slate-900/80 hover:bg-slate-100 active:bg-slate-200 transition-all disabled:opacity-30 mx-auto"
               >
                 <Delete size={24} />
               </button>
@@ -92,7 +90,7 @@ export function PinDialPad({ onComplete, isLoading, displayName }: PinDialPadPro
               key={index}
               onClick={() => handlePress(digit)}
               disabled={isLoading}
-              className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-2xl font-semibold text-white hover:bg-white/20 active:bg-white/30 active:scale-95 transition-all disabled:opacity-50 mx-auto shadow-lg"
+              className="w-16 h-16 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-2xl font-semibold text-slate-900 hover:bg-slate-100 active:bg-slate-200 active:scale-95 transition-all disabled:opacity-50 mx-auto shadow-lg"
             >
               {digit}
             </button>
@@ -102,7 +100,7 @@ export function PinDialPad({ onComplete, isLoading, displayName }: PinDialPadPro
 
       {/* Hint */}
       <p className="text-white/40 text-xs mt-6">
-        Injiza PIN yawe (imibare 5-6)
+        Injiza PIN yawe (imibare 6)
       </p>
     </div>
   );

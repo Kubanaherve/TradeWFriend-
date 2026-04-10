@@ -6,10 +6,10 @@
       }
     },
     "android": {
-      "package": "com.jeannefriend.jewelry"
+      "package": "com.tradewfriend.plus"
     },
     "ios": {
-      "bundleIdentifier": "com.jeannefriend.jewelry",
+      "bundleIdentifier": "com.tradewfriend.plus",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }

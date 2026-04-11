@@ -164,28 +164,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isLocalAuth]);
 
   // ── Visibility change (app minimize / tab switch) ────────────
+  // Force PIN verification immediately when app is hidden
   useEffect(() => {
-    const handle = () => {
+    const handleVisibilityChange = () => {
       if (!isAuthRef.current) return;
+
+      // When the user swipes up, closes the tab, or minimizes the app
       if (document.visibilityState === 'hidden') {
-        localStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
-        if (pinTimerRef.current) clearTimeout(pinTimerRef.current);
-      } else {
-        // App came back to foreground
-        const lastActive = parseInt(localStorage.getItem(LAST_ACTIVE_KEY) ?? '0');
-        const elapsed = Date.now() - lastActive;
-        if (!lastActive || elapsed >= PIN_TIMEOUT_MS) {
-          setRequiresPin(true);
-        } else {
-          if (pinTimerRef.current) clearTimeout(pinTimerRef.current);
-          pinTimerRef.current = setTimeout(() => {
-            if (isAuthRef.current) setRequiresPin(true);
-          }, PIN_TIMEOUT_MS - elapsed);
+        setRequiresPin(true); // Force PIN dial box
+        localStorage.setItem(LAST_ACTIVE_KEY, '0'); // Reset timer to 0
+        
+        if (pinTimerRef.current) {
+          clearTimeout(pinTimerRef.current);
+          pinTimerRef.current = null;
         }
       }
     };
-    document.addEventListener('visibilitychange', handle);
-    return () => document.removeEventListener('visibilitychange', handle);
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   // ── Lock countdown ───────────────────────────────────────────

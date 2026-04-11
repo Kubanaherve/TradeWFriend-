@@ -81,7 +81,7 @@ const InventoryPage: React.FC = () => {
         // Update existing item
         const { error: updateError } = await supabase
           .from("inventory_items")
-          .update({ image_url: publicUrl })
+          .update({ image_url: publicUrl } as any)
           .eq("id", itemId);
         
         if (updateError) throw updateError;
@@ -111,11 +111,11 @@ const InventoryPage: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from("inventory_items")
-        .select("id, item_name, quantity, cost_price, image_url")
+        .select("id, item_name, quantity, cost_price, image_url" as any)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setItems(data ?? []);
+      setItems((data as unknown as InventoryItem[]) ?? []);
     } catch (err) {
       console.error(err);
       toast.error("Habaye ikosa mu gufata ibintu");
@@ -218,7 +218,7 @@ const InventoryPage: React.FC = () => {
           quantity,
           cost_price: cost,
           ...(newImageUrl && { image_url: newImageUrl }),
-        })
+        } as any)
         .select()
         .single();
 
@@ -364,111 +364,39 @@ const InventoryPage: React.FC = () => {
           <p className="text-center text-muted-foreground">Nta bintu biri muri stock.</p>
         ) : (
           items.map(item => (
-            <div
-              key={item.id}
-              className="glass-card p-4 flex justify-between items-start gap-3"
-            >
-              {/* Image Section */}
-              <div className="relative w-16 h-16 flex-shrink-0 rounded-lg bg-muted/50 overflow-hidden flex items-center justify-center group">
+            <div key={item.id} className="glass-card p-4 flex gap-4 items-center">
+              {/* Photo Section */}
+              <div className="relative w-20 h-20 bg-slate-100 rounded-xl overflow-hidden border flex-shrink-0">
                 {item.image_url ? (
-                  <img src={item.image_url} alt={item.item_name} className="w-full h-full object-cover" />
+                  <img src={item.image_url} className="w-full h-full object-cover" />
                 ) : (
-                  <Camera size={24} className="text-muted-foreground" />
-                )}
-                
-                {/* Upload Overlay (Owner Only) */}
-                {isOwner && (
-                  <>
-                    <input
-                      id={`camera-${item.id}`}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={e => handleFileUpload(e, item.id)}
-                      disabled={uploading}
-                      className="hidden"
-                    />
-                    <input
-                      id={`file-${item.id}`}
-                      type="file"
-                      accept="image/*"
-                      onChange={e => handleFileUpload(e, item.id)}
-                      disabled={uploading}
-                      className="hidden"
-                    />
-                    <label
-                      htmlFor={`camera-${item.id}`}
-                      className="absolute inset-0 bg-black/0 group-hover:bg-black/50 flex items-center justify-center cursor-pointer transition-colors flex-col gap-1"
-                    >
-                      <Camera size={20} className="text-white/0 group-hover:text-white" />
-                      <span className="text-white/0 group-hover:text-white text-xs font-medium">Kunan</span>
-                    </label>
-                  </>
+                  <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer">
+                    <Camera size={20} className="text-slate-400" />
+                    <span className="text-[10px] text-slate-400">Ifoto</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, item.id)} />
+                  </label>
                 )}
               </div>
 
-              {/* Item Details */}
               <div className="flex-1">
-                <h3 className="font-semibold">{item.item_name}</h3>
-
-                {editingId === item.id ? (
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      type="number"
-                      value={editingCost}
-                      onChange={e => setEditingCost(e.target.value)}
-                      className="w-24 text-sm"
-                    />
-                    <Input
-                      type="number"
-                      value={editingQuantity}
-                      onChange={e => setEditingQuantity(e.target.value)}
-                      className="w-20 text-sm"
-                    />
-                    <Button size="sm" onClick={() => handleSaveEdit(item.id)}>
-                      Save
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setEditingId(null)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-sm mt-1 flex flex-wrap gap-2">
-                    Cost Price:
-                    <span className="font-bold text-purple-600">{formatCurrency(item.cost_price)}</span>
-                    | 
-                    <span className="font-bold text-purple-600">Hasigayemo: {item.quantity}</span>
+                <h3 className="font-bold text-slate-900">{item.item_name}</h3>
+                <div className="space-y-1 mt-1">
+                  {/* Security: Hide cost from employees */}
+                  {isOwner && (
+                    <p className="text-xs text-purple-700 font-bold">
+                      Igiciro waguriyeho: {formatCurrency(item.cost_price)}
+                    </p>
+                  )}
+                  <p className="text-xs font-bold text-blue-600">
+                    Umubare usigaye: {item.quantity}
                   </p>
-                )}
+                </div>
               </div>
 
-              {/* Actions (Owner Only) */}
               {isOwner && (
-                <div className="flex flex-col gap-2">
-                  <Button
-                    size="icon"
-                    variant="destructive"
-                    onClick={() => handleDelete(item.id)}
-                  >
-                    <Trash2 size={16} />
-                  </Button>
-
-                  <Button
-                    size="icon"
-                    className="text-primary"
-                    onClick={() => {
-                      setEditingId(item.id);
-                      setEditingCost(item.cost_price?.toString() ?? "");
-                      setEditingQuantity(item.quantity.toString());
-                    }}
-                  >
-                    <Edit size={16} />
-                  </Button>
-                </div>
+                <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}>
+                  <Trash2 size={18} className="text-red-500" />
+                </Button>
               )}
             </div>
           ))

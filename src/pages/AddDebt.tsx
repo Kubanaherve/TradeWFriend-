@@ -160,22 +160,28 @@ const AddDebtPageEnhanced: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-slate-900 pb-10">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 text-slate-900 pb-10" style={{ fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}>
+      <div className="pointer-events-none absolute -left-20 top-10 h-72 w-72 rounded-full bg-gradient-to-br from-indigo-300/40 to-transparent blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-32 h-80 w-80 rounded-full bg-gradient-to-br from-cyan-300/30 to-transparent blur-3xl" />
+
       {/* Navigation - Better Visibility */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-100 px-5 py-4">
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/70 px-5 py-4 shadow-sm shadow-slate-200">
         <div className="max-w-md mx-auto flex items-center justify-between">
           <button 
             onClick={() => navigate("/dashboard")} 
-            className="p-2.5 rounded-xl bg-slate-50 text-slate-500 active:scale-95 transition-all"
+            className="p-2.5 rounded-2xl bg-slate-50 text-slate-500 shadow-sm shadow-slate-200 active:scale-95 transition-all"
           >
             <ArrowLeft size={20} />
           </button>
-          <h1 className="text-xs font-black uppercase tracking-widest text-slate-500">Gucuruza</h1>
+          <div className="text-center">
+            <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400">Premium Ledger</p>
+            <h1 className="text-sm font-black text-slate-900">Add New Debt</h1>
+          </div>
           <div className="w-10" />
         </div>
       </header>
 
-      <main className="max-w-md mx-auto p-5 space-y-6">
+      <main className="relative max-w-md mx-auto p-5 space-y-6 animate-fade-in">
         {/* Customer Info Card */}
         <section className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
           <div className="flex items-center gap-2">
@@ -241,32 +247,34 @@ const AddDebtPageEnhanced: React.FC = () => {
         </section>
 
         {/* Total Summary Card - High Contrast */}
-        <section className="bg-slate-900 rounded-3xl p-7 text-white space-y-6 shadow-xl shadow-slate-200">
-          <div className="flex justify-between items-center">
+        <section className="bg-slate-900 rounded-2xl p-5 text-white space-y-4 shadow-lg shadow-slate-300/20 border border-white/10">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Igiteranyo</p>
-              <h2 className="text-3xl font-black tracking-tight">{formatCurrency(parseFloat(form.amount || "0"))}</h2>
+              <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Igiteranyo</p>
+              <h2 className="text-2xl font-bold tracking-tight">{formatCurrency(parseFloat(form.amount || "0"))}</h2>
             </div>
-            <div className="flex flex-col items-end gap-3">
-              <span className="text-xs font-bold uppercase text-slate-500">{form.isPaid ? "Yishyuwe" : "Ideni"}</span>
-              <Switch 
-                checked={form.isPaid} 
+            <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-3 py-2 border border-white/20">
+              <span className="text-xs font-semibold uppercase text-slate-300 min-w-[60px] text-center">
+                {form.isPaid ? "Yishyuye" : "Ideni"}
+              </span>
+              <Switch
+                checked={form.isPaid}
                 onCheckedChange={checked => setForm({ ...form, isPaid: checked })}
-                className="scale-110 data-[state=checked]:bg-emerald-500"
+                className="scale-100 data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-red-500"
               />
             </div>
           </div>
 
           {!form.isPaid && (
-            <div className="pt-5 border-t border-white/10 flex items-center gap-4">
-              <Calendar size={18} className="text-slate-500" />
+            <div className="pt-3 border-t border-white/10 flex items-center gap-3">
+              <Calendar size={16} className="text-slate-400 flex-shrink-0" />
               <div className="flex-1">
-                <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Itariki yo kwishyura</p>
-                <input 
-                  type="date" 
-                  value={form.dueDate} 
+                <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Itariki yo kwishyura</p>
+                <input
+                  type="date"
+                  value={form.dueDate}
                   onChange={e => setForm({...form, dueDate: e.target.value})}
-                  className="bg-transparent text-sm font-bold outline-none w-full"
+                  className="bg-transparent text-sm font-medium outline-none w-full border-b border-white/20 focus:border-white/40 pb-1"
                 />
               </div>
             </div>
@@ -275,20 +283,22 @@ const AddDebtPageEnhanced: React.FC = () => {
 
         {/* Actions */}
         <div className="pt-4 space-y-4">
-          <Button 
-            onClick={handleSubmit} 
+          <Button
+            onClick={handleSubmit}
             disabled={isLoading || selectedItems.length === 0}
-            className="w-full h-16 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+            className="w-full h-14 rounded-xl bg-slate-900 text-white font-semibold text-sm uppercase tracking-wide shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}
           >
             {isLoading ? (
-               <RefreshCcw size={20} className="animate-spin" />
+               <RefreshCcw size={18} className="animate-spin" />
             ) : (
               "EMEZA BINJIRE ✨"
             )}
           </Button>
-          <button 
-            onClick={() => navigate("/dashboard")} 
-            className="w-full py-2 text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-900"
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="w-full py-3 text-sm font-medium text-slate-500 uppercase tracking-wide hover:text-slate-700 transition-colors rounded-lg hover:bg-slate-50"
+            style={{ fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}
           >
             Hagarika
           </button>
@@ -298,43 +308,51 @@ const AddDebtPageEnhanced: React.FC = () => {
       {/* Inventory Modal - Large Labels */}
       {showInventoryPopup && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-t-[2.5rem] sm:rounded-3xl p-8 w-full max-w-sm space-y-6 shadow-2xl animate-in slide-in-from-bottom duration-300">
+          <div className="bg-white rounded-t-[2rem] sm:rounded-2xl p-6 w-full max-w-sm space-y-5 shadow-2xl animate-in slide-in-from-bottom duration-300" style={{ fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}>
             <div className="flex justify-between items-center">
-              <h2 className="text-xs font-black uppercase tracking-widest">Hitamo Muri Stock</h2>
-              <button onClick={() => setShowInventoryPopup(false)} className="p-2 bg-slate-50 rounded-full text-slate-400"><X size={20} /></button>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-800">Hitamo Muri Stock</h2>
+              <button onClick={() => setShowInventoryPopup(false)} className="p-2 bg-slate-50 rounded-full text-slate-400 hover:bg-slate-100 transition-colors">
+                <X size={18} />
+              </button>
             </div>
-            
-            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+
+            <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
               {inventory.map(item => (
                 <button
                   key={item.id}
                   onClick={() => setPopupSelectedItem(item)}
-                  className={`w-full p-4 rounded-2xl flex justify-between items-center border-2 transition-all ${
-                    popupSelectedItem?.id === item.id ? "border-slate-900 bg-slate-50" : "border-slate-50 hover:bg-slate-50"
+                  className={`w-full p-4 rounded-xl flex justify-between items-center border-2 transition-all duration-200 ${
+                    popupSelectedItem?.id === item.id ? "border-slate-900 bg-slate-50 shadow-md" : "border-slate-100 hover:bg-slate-50 hover:border-slate-200"
                   }`}
+                  style={{ fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}
                 >
                   <div className="text-left">
-                    <p className="text-sm font-bold text-slate-800">{item.item_name}</p>
-                    <p className="text-xs font-bold text-slate-400 tracking-tight">Hasigaye {item.quantity}</p>
+                    <p className="text-sm font-medium text-slate-800">{item.item_name}</p>
+                    <p className="text-xs font-medium text-slate-500">Hasigaye {item.quantity}</p>
                   </div>
-                  <span className="text-sm font-black text-slate-700">{formatCurrency(item.cost_price)}</span>
+                  <span className="text-sm font-semibold text-slate-700">{formatCurrency(item.cost_price)}</span>
                 </button>
               ))}
             </div>
 
             {popupSelectedItem && (
-              <div className="pt-6 border-t border-slate-100 flex items-center gap-4">
+              <div className="pt-4 border-t border-slate-100 flex items-center gap-3">
                 <div className="flex flex-col items-center">
-                  <span className="text-[10px] font-black text-slate-400 uppercase mb-1">Qty</span>
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase mb-1">Qty</span>
                   <input
                     type="number"
                     min={1}
                     value={popupItemQty}
                     onChange={e => setPopupItemQty(e.target.value)}
-                    className="w-20 p-4 bg-slate-50 rounded-2xl text-center font-black text-base outline-none border-2 border-transparent focus:border-slate-200"
+                    className="w-16 p-3 bg-slate-50 rounded-lg text-center font-medium text-sm outline-none border border-slate-200 focus:border-slate-400 transition-colors"
+                    style={{ fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}
                   />
                 </div>
-                <Button onClick={confirmPopupItem} className="flex-1 h-16 rounded-2xl bg-slate-900 font-black text-xs uppercase tracking-widest">
+                <Button
+                  onClick={confirmPopupItem}
+                  className="flex-1 h-12 rounded-lg bg-slate-900 font-medium text-sm uppercase tracking-wide hover:bg-slate-800 transition-colors"
+                  style={{ fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}
+                >
                   Ongeraho
                 </Button>
               </div>

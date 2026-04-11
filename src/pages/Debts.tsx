@@ -588,7 +588,7 @@ const DebtsPage = () => {
 
       {/* ── Main list ── */}
       <main
-        className="p-4 max-w-4xl mx-auto space-y-4 overflow-auto"
+        className="p-4 max-w-4xl mx-auto space-y-4 overflow-auto animate-fade-in"
         style={{ maxHeight: "calc(100vh - 80px)" }}
         ref={containerRef}
         onScroll={handleScroll}

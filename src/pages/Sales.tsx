@@ -311,7 +311,7 @@ const ReportsPage = () => {
 </Button>
       </header>
 
-      <main className="p-4 max-w-lg mx-auto space-y-4">
+      <main className="p-4 max-w-lg mx-auto space-y-4 animate-fade-in">
         <div className="space-y-1">
           <h2 className="text-sm font-semibold text-foreground">{filterTitle}</h2>
           <p className="text-xs text-muted-foreground">

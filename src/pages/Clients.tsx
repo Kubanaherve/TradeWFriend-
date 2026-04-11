@@ -130,7 +130,7 @@ const ClientsPage = () => {
         </div>
       </header>
 
-      <main className="p-4 pb-8 space-y-6 max-w-lg mx-auto">
+      <main className="p-4 pb-8 space-y-6 max-w-lg mx-auto animate-fade-in">
         {/* Add Client Form */}
         <div className="glass-card p-5 animate-fade-in">
           <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">

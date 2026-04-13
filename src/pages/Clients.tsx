@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, UserPlus, Phone, User, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +18,7 @@ interface Client {
 
 const ClientsPage = () => {
   const navigate = useNavigate();
+  const { isOwner } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -109,6 +111,22 @@ const ClientsPage = () => {
       toast.error("Habaye ikosa");
     }
   };
+
+  if (!isOwner) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-muted to-background flex items-center justify-center p-6">
+        <div className="bg-white rounded-3xl p-8 shadow-xl max-w-md text-center">
+          <h1 className="text-xl font-bold mb-3">Uburenganzira buke</h1>
+          <p className="text-sm text-slate-600 mb-6">
+            Abakozi (umukozi) ntabwo bemerewe gucunga abakiriya.
+          </p>
+          <Button onClick={() => navigate("/dashboard")} className="w-full">
+            Garuka kuri Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted to-background">

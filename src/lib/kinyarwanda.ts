@@ -8,6 +8,11 @@ export const labels = {
   pin: "PIN",
   name: "Izina",
   welcome: "Murakaza neza",
+  businessName: "Izina ry'ubucuruzi",
+  phone: "Telefone",
+  role: "Inshingano",
+  owner: "Nyir'ubucuruzi",
+  employee: "Umukozi",
   
   // Dashboard
   dashboard: "Ibikubiye",
@@ -19,6 +24,10 @@ export const labels = {
   addInventoryItem: "Ongeraho Ikintu",
   noInventory: "Nta kintu kihari",
   totalUnpaid: "Amafaranga yose atarishyurwa",
+  totalPaid: "Amafaranga yishyuwe",
+  totalProfit: "Inyungu yose",
+  resetAll: "Tangira Bushya",
+  resetSuccess: "Amafaranga yasubijwe kuri 0!",
   
   // Customer & Debt Fields
   customerName: "Izina ry'umukiriya",
@@ -32,6 +41,11 @@ export const labels = {
   paid: "Yishyuye",
   unpaid: "Ntarishyura",
   Inbox: "Ubutumwa",
+  addNew: "Ongeraho Ikindi",
+  search: "Shakisha",
+  noDebts: "Nta deni rihari",
+  totalDebt: "Ideni ryose",
+  customers: "Abakiriya",
   
   // Sales Fields
   itemName: "Izina ry'Ikintu",
@@ -40,11 +54,12 @@ export const labels = {
   quantity: "Umubare",
   dateSold: "Itariki byagurishijweho",
   dateBought: "Itariki byaguzweho",
+  totalSales: "Amafaranga yose yinjijwe",
+  noSales: "Nta kintu cyagurishijwe",
   
   // Actions
   save: "Emeza",
   cancel: "Bireke",
-  addNew: "Ongeraho Ikindi",
   delete: "Siba",
   edit: "Hindura",
   call: "Muhamagare",
@@ -52,31 +67,60 @@ export const labels = {
   markAsPaid: "Amaze kunyishyura",
   remind: "Musobanurire",
   filter: "Tondeka",
-  search: "Shakisha",
   ok: "Ok",
   confirm: "Emeza",
+  confirmDelete: "Urashaka gusiba?",
+  back: "Subira inyuma",
+  next: "Komeza",
+  finish: "Soza",
   
-  // Summary
-  totalSales: "Amafaranga yose yinjijwe",
-  totalProfit: "Totali y'Inyungu",
-  totalDebt: "Ideni ryose",
-  customers: "Abakiriya",
+  // Placeholders
+  customerNamePlaceholder: "Izina ry'umukiriya...",
+  phonePlaceholder: "07X XXX XXXX",
+  itemNamePlaceholder: "Izina ry'ikintu",
+  quantityPlaceholder: "Umubare uri muri stock",
+  costPricePlaceholder: "Igiciro cyo kugura",
+  amountPlaceholder: "Andika amafaranga",
+  messagePlaceholder: "Murakoze cyane...",
+  searchPlaceholder: "Shakisha...",
+  businessNamePlaceholder: "Urugero: Chez Marie Shop",
+  displayNamePlaceholder: "Urugero: Jeanne",
   
   // Messages
   debtSavedSuccess: "Ideni ryashyizweho neza",
   saleSavedSuccess: "Icyagurishijwe cyashyizweho neza",
   markedAsPaid: "Byamaze kwishyurwa",
-  confirmDelete: "Urashaka gusiba?",
-  confirmResetAll: "Urashaka gusiba amafaranga yose no gutangira bushya?",
-  resetAll: "Tangira Bushya",
-  resetSuccess: "Amafaranga yasubijwe kuri 0!",
-  noDebts: "Nta deni rihari",
-  noSales: "Nta kintu cyagurishijwe",
+  paymentRecorded: "Ubwishyu bwashyizweho",
+  itemAdded: "Ikintu cyongeyeho",
+  loading: "Birimo...",
+  error: "Habaye ikosa",
+  success: "Byagenze neza",
   invalidPin: "PIN ntiyemera",
+  accountLocked: "Konti irafunze",
+  tryAgain: "Ongera ugerageze",
+  
+  // Settings
+  settings: "Igenamiterere",
+  businessSettings: "Igenamiterere ry'ubucuruzi",
+  initialCapital: "Amafaranga y'ibanze",
+  targetCapital: "Amafaranga y'intego",
+  saveSettings: "Emeza igenamiterere",
+  factoryReset: "Tangira bushya",
+  factoryResetConfirm: "Ibi bizasiba amakuru yose",
+  
+  // Inventory
+  takePhoto: "Kunan Ikintu",
+  selectFile: "Hitamo Ifoto",
+  imageUploaded: "Ifoto yashyizweho",
+  imageUploadError: "Ifoto ntiyashyizweho",
+  stock: "Stock",
+  lowStock: "Stock nkeya",
+  outOfStock: "Nta stock ihari",
   
   // App Info
   appName: "TradeWFriend+",
   jewelryBusiness: "Ubucuruzi",
+  smartBusinessManager: "Umuyobozi w'ubucuruzi w'intelligensiya",
 } as const;
 
 // SMS message templates

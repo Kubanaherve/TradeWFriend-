@@ -5,15 +5,11 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { labels, formatCurrency } from "@/lib/kinyarwanda";
-import {
-  DAILY_CUSTOMER_PAYMENTS_PREFIX,
-  DAILY_NEW_DEBT_PREFIX,
-  getDateKeyFromIso,
-  incrementAppSettingAmount,
-} from "@/lib/reporting";
-import { ArrowLeft, Save, X, Package, User, Phone, Calendar, ShoppingBag, RefreshCcw } from "lucide-react";
+import { ArrowLeft, Save, X, Package, User, Phone, Calendar, ShoppingBag, RefreshCcw, Camera } from "lucide-react";
 import { CustomerAutocomplete } from "@/components/CustomerAutocomplete";
+import { useBusinessSettings } from "@/hooks/useBusinessSettings";
 import { useCustomerSuggestions } from "@/hooks/useCustomerSuggestions";
+import { useAppStore } from "@/store/AppStore";
 
 interface SelectedItem {
   id: string;
@@ -32,6 +28,8 @@ interface InventoryItem {
 const AddDebtPageEnhanced: React.FC = () => {
   const navigate = useNavigate();
   const { customers } = useCustomerSuggestions();
+  const { settings: businessSettings } = useBusinessSettings();
+  const { recordTransaction } = useAppStore();
 
   const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState({
@@ -46,6 +44,74 @@ const AddDebtPageEnhanced: React.FC = () => {
   const [showInventoryPopup, setShowInventoryPopup] = useState(false);
   const [popupSelectedItem, setPopupSelectedItem] = useState<InventoryItem | null>(null);
   const [popupItemQty, setPopupItemQty] = useState<string>("1");
+  
+  // Camera functionality
+  const [customerImageUrl, setCustomerImageUrl] = useState<string>("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  /* =========================
+     IMAGE UPLOAD HANDLER
+  ========================== */
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file
+    const validImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validImageTypes.includes(file.type)) {
+      toast.error("Habaye ikosa: Andika ifoto neza (JPEG, PNG, WebP cyangwa GIF)");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Ifoto nini cyane (max 5MB)");
+      return;
+    }
+
+    setUploadingImage(true);
+    const fileExt = file.type.split('/').pop();
+    const filePath = `debt-${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+
+    try {
+      // Try to create bucket if it doesn't exist
+      try {
+        await supabase.storage.createBucket('debt_images', {
+          public: true,
+          allowedMimeTypes: validImageTypes,
+          fileSizeLimit: 5242880 // 5MB
+        });
+      } catch (bucketError) {
+        // Bucket might already exist, continue
+        console.log('Bucket creation attempted:', bucketError);
+      }
+
+      const { error: uploadError } = await supabase.storage
+        .from('debt_images')
+        .upload(filePath, file, { upsert: false });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error(uploadError.message || 'Gushyiraho ifoto byanze');
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('debt_images')
+        .getPublicUrl(filePath);
+
+      setCustomerImageUrl(publicUrl);
+      toast.success("Ifoto yashyizweho!");
+    } catch (err: unknown) {
+      console.error('Full upload error:', err);
+      const errorMsg = (err as Error)?.message || "Gushyiraho ifoto byanze";
+      toast.error(errorMsg);
+    } finally {
+      setUploadingImage(false);
+      // Reset input
+      if (e.target) e.target.value = '';
+    }
+  };
 
   useEffect(() => {
     if (!showInventoryPopup) return;
@@ -109,45 +175,57 @@ const AddDebtPageEnhanced: React.FC = () => {
     setIsLoading(true);
     const amountValue = parseFloat(form.amount);
     const nowISO = new Date().toISOString();
-    const todayKey = getDateKeyFromIso(nowISO);
 
     try {
       if (form.phone) {
         const itemsText = selectedItems.map(i => `${i.name} (x${i.quantity})`).join(", ");
-        const message = `Muraho ${form.name}, mufashe ${itemsText} muri Jeanne Friend Jewerlies. Total ni: ${formatCurrency(amountValue)}. Murakoze!`;
+        const message = `Muraho ${form.name}, mufashe ${itemsText} muri ${businessSettings.businessName}. Total ni: ${formatCurrency(amountValue)}. Murakoze!`;
         let cleanPhone = form.phone.replace(/\s+/g, "");
         if (cleanPhone.startsWith("0")) cleanPhone = "25" + cleanPhone;
         window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, "_blank");
       }
 
-      const { error: insertError } = await supabase.from("customers").insert([
-        {
-          name: form.name.trim(),
-          phone: form.phone.trim() || null,
-          items: JSON.stringify(selectedItems.map(i => `${i.name} ${i.quantity}`)),
-          amount: amountValue,
-          due_date: form.dueDate,
-          is_paid: form.isPaid,
-          paid_at: form.isPaid ? nowISO : null,
-          created_at: nowISO,
-        },
-      ]);
-      if (insertError) throw insertError;
+      const { data: insertedCustomers, error: insertError } = await supabase
+        .from("customers")
+        .insert([
+          {
+            name: form.name.trim(),
+            phone: form.phone.trim() || null,
+            items: JSON.stringify(selectedItems.map(i => `${i.name} ${i.quantity}`)),
+            amount: amountValue,
+            due_date: form.dueDate,
+            is_paid: form.isPaid,
+            paid_at: form.isPaid ? nowISO : null,
+            created_at: nowISO,
+          },
+        ])
+        .select()
+        .single();
+
+      if (insertError || !insertedCustomers) throw insertError || new Error("Customer insert failed");
 
       for (const item of selectedItems) {
-        const currentQty = inventory.find(i => i.id === item.id)?.quantity ?? 0;
+        const currentQty = inventory.find((i) => i.id === item.id)?.quantity ?? 0;
         await supabase
           .from("inventory_items")
           .update({ quantity: currentQty - item.quantity })
           .eq("id", item.id);
       }
 
-      if (form.isPaid) {
-        await incrementAppSettingAmount("total_paid", amountValue);
-        await incrementAppSettingAmount(`${DAILY_CUSTOMER_PAYMENTS_PREFIX}${todayKey}`, amountValue);
-      } else {
-        await incrementAppSettingAmount(`${DAILY_NEW_DEBT_PREFIX}${todayKey}`, amountValue);
-      }
+      await recordTransaction({
+        transaction_type: form.isPaid ? "payment" : "debt",
+        amount: amountValue,
+        date: nowISO,
+        description: form.isPaid
+          ? `Payment received from ${form.name}`
+          : `Debt created for ${form.name}`,
+        related_id: insertedCustomers.id,
+        created_by: null,
+        metadata: {
+          phone: form.phone,
+          items: selectedItems.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price })),
+        },
+      });
 
       toast.success("Byabitswe neza ✨");
       window.dispatchEvent(new CustomEvent("newDebtAdded", { detail: { amount: amountValue, isPaid: form.isPaid } }));
@@ -195,7 +273,7 @@ const AddDebtPageEnhanced: React.FC = () => {
               onChange={v => setForm({ ...form, name: v })}
               onSelect={handleCustomerSelect}
               suggestions={customers}
-              placeholder="Izina ry'umukiriya..."
+              placeholder={labels.customerNamePlaceholder}
             />
           </div>
 
@@ -203,11 +281,67 @@ const AddDebtPageEnhanced: React.FC = () => {
             <Phone size={18} className="text-slate-300" />
             <input
               type="tel"
-              placeholder="07X XXX XXXX"
+              placeholder={labels.phonePlaceholder}
               value={form.phone}
               onChange={e => setForm({ ...form, phone: e.target.value })}
               className="flex-1 bg-transparent text-base font-medium focus:outline-none"
             />
+          </div>
+
+          {/* Customer Photo Section */}
+          <div className="pt-3 border-t border-slate-100">
+            <label className="text-xs text-muted-foreground block font-medium mb-3">Ifoto y'umukiriya (ihitamo)</label>
+            
+            {/* Hidden inputs */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+
+            {/* Upload Buttons */}
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors disabled:opacity-50"
+              >
+                <Camera size={16} />
+                <span className="text-xs font-medium">📷 Fata Ifoto</span>
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors disabled:opacity-50"
+              >
+                <span className="text-xs font-medium">📁 Hitamo Ifoto</span>
+              </button>
+            </div>
+
+            {/* Image Preview */}
+            {customerImageUrl && (
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                <img src={customerImageUrl} alt="Customer" className="w-12 h-12 object-cover rounded border border-slate-200" />
+                <span className="text-xs text-green-600 font-medium">✓ Ifoto yashyizweho</span>
+              </div>
+            )}
+
+            {uploadingImage && (
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <RefreshCcw size={12} className="animate-spin" />
+                <span>Kurongora ifoto...</span>
+              </div>
+            )}
           </div>
         </section>
 

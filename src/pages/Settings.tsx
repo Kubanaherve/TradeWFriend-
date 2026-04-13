@@ -1,24 +1,28 @@
-import { useState, useEffect } from "react";
-import { ArrowLeft, Save, RotateCcw, AlertCircle, Gem } from "lucide-react";
+import { useEffect, useMemo, useState, type CSSProperties, type FocusEvent } from "react";
+import { ArrowLeft, Save, RotateCcw, AlertTriangle, Crown, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
-/* ─── Styles ───────────────────────────────────────────── */
+type BusinessSettings = {
+  businessName: string;
+  initialCapital: number;
+  targetCapital: number;
+};
+
+const DEFAULT_SETTINGS: BusinessSettings = {
+  businessName: "",
+  initialCapital: 0,
+  targetCapital: 0,
+};
+
+const SETTING_KEYS = {
+  initialCapital: "initial_capital",
+  targetCapital: "target_capital",
+} as const;
+
 const S = {
   page: {
     minHeight: "100vh",
@@ -55,10 +59,11 @@ const S = {
   card: {
     background: "white",
     borderRadius: 28,
-    boxShadow: "0 4px 6px rgba(0,0,0,0.04), 0 20px 60px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)",
+    boxShadow:
+      "0 4px 6px rgba(0,0,0,0.04), 0 20px 60px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)",
     padding: "32px 28px",
     width: "100%",
-    maxWidth: 380,
+    maxWidth: 430,
     position: "relative" as const,
     zIndex: 1,
   },
@@ -86,10 +91,28 @@ const S = {
     color: "#64748b",
     textAlign: "center" as const,
     marginBottom: 28,
+  },
+  section: {
+    border: "1px solid #e2e8f0",
+    borderRadius: 20,
+    padding: 18,
+    marginTop: 16,
+    background: "#fff",
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: 800,
+    color: "#0f172a",
+    marginBottom: 6,
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
+    gap: 8,
+  },
+  sectionText: {
+    fontSize: 13,
+    color: "#64748b",
+    marginBottom: 14,
+    lineHeight: 1.5,
   },
   input: {
     width: "100%",
@@ -106,13 +129,13 @@ const S = {
   },
   label: {
     fontSize: 12,
-    fontWeight: 600,
+    fontWeight: 700,
     color: "#475569",
     marginBottom: 6,
     display: "block",
     letterSpacing: "0.3px",
   },
-  btn: {
+  btnPrimary: {
     width: "100%",
     padding: "14px",
     borderRadius: 16,
@@ -130,137 +153,274 @@ const S = {
     justifyContent: "center",
     gap: 8,
     marginTop: 8,
-  },
-  neonLine: {
-    height: 2,
-    borderRadius: 99,
-    background: "linear-gradient(90deg,transparent,#3b82f6,#06b6d4,transparent)",
-    margin: "20px 0",
-    opacity: 0.5,
-  },
+  } as CSSProperties,
+  btnDanger: {
+    width: "100%",
+    padding: "14px",
+    borderRadius: 16,
+    border: "1px solid rgba(220,38,38,0.15)",
+    cursor: "pointer",
+    fontSize: 15,
+    fontWeight: 700,
+    background: "linear-gradient(135deg,#7f1d1d 0%,#dc2626 100%)",
+    color: "white",
+    letterSpacing: "0.2px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  } as CSSProperties,
+  btnOutline: {
+    width: "100%",
+    padding: "13px",
+    borderRadius: 16,
+    border: "1.5px solid #e2e8f0",
+    cursor: "pointer",
+    fontSize: 14,
+    fontWeight: 700,
+    background: "white",
+    color: "#0f172a",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  } as CSSProperties,
 };
 
-interface BusinessSettings {
-  businessName: string;
-  initialCapital: number;
-  targetCapital?: number;
+function focusStyle(e: FocusEvent<HTMLInputElement>) {
+  e.target.style.borderColor = "#3b82f6";
+  e.target.style.boxShadow = "0 0 0 3px rgba(59,130,246,0.12)";
 }
 
-const DEFAULT_SETTINGS: BusinessSettings = {
-  businessName: "My Business",
-  initialCapital: 0,
-  targetCapital: 0,
-};
+function blurStyle(e: FocusEvent<HTMLInputElement>) {
+  e.target.style.borderColor = "#e2e8f0";
+  e.target.style.boxShadow = "none";
+}
 
-export const Settings = () => {
+const Settings = () => {
   const navigate = useNavigate();
+  const auth = useAuth();
+
   const [settings, setSettings] = useState<BusinessSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [clearing, setClearing] = useState(false);
 
-  // Load settings from localStorage
+  const isOwner = auth.profile?.role === "owner";
+  const ownerIdentifier = auth.profile?.phone ?? "";
+  const businessNameFromProfile = auth.profile?.businessName ?? "";
+
+  const canUsePage = useMemo(
+    () => !!auth.isAuthenticated && !!auth.profile,
+    [auth.isAuthenticated, auth.profile]
+  );
+
   useEffect(() => {
-    const loadSettings = () => {
+    if (!auth.isLoading && !auth.isAuthenticated) {
+      navigate("/", { replace: true });
+    }
+  }, [auth.isAuthenticated, auth.isLoading, navigate]);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!canUsePage) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        const stored = localStorage.getItem("tradewfriend_business_settings");
-        if (stored) {
-          setSettings(JSON.parse(stored));
-        }
+        const { data: appSettings, error: appSettingsError } = await supabase
+          .from("app_settings")
+          .select("setting_key, setting_value")
+          .in("setting_key", [SETTING_KEYS.initialCapital, SETTING_KEYS.targetCapital]);
+
+        if (appSettingsError) throw appSettingsError;
+
+        const map = new Map(
+          (appSettings ?? []).map((row) => [row.setting_key, row.setting_value])
+        );
+
+        setSettings({
+          businessName: businessNameFromProfile,
+          initialCapital: Number(map.get(SETTING_KEYS.initialCapital) ?? 0),
+          targetCapital: Number(map.get(SETTING_KEYS.targetCapital) ?? 0),
+        });
       } catch (error) {
-        console.error("Error loading settings:", error);
+        console.error("Failed to load settings:", error);
+        toast.error("Failed to load settings");
       } finally {
         setLoading(false);
       }
     };
-    loadSettings();
-  }, []);
+
+    void loadSettings();
+  }, [businessNameFromProfile, canUsePage]);
 
   const handleSave = async () => {
+    if (!isOwner) {
+      toast.error("Only the owner can change business settings.");
+      return;
+    }
+
+    if (!settings.businessName.trim()) {
+      toast.error("Business name is required.");
+      return;
+    }
+
     setSaving(true);
+
     try {
-      // Save to localStorage
-      localStorage.setItem(
-        "tradewfriend_business_settings",
-        JSON.stringify(settings)
-      );
-      
-      // Also save to Supabase app_settings for persistence
-      try {
-        const appSettings = [
-          { setting_key: "business_name", setting_value: settings.businessName },
-          { setting_key: "initial_capital", setting_value: settings.initialCapital.toString() },
-          { setting_key: "target_capital", setting_value: (settings.targetCapital || 0).toString() },
-        ];
+      const settingsRows = [
+        {
+          setting_key: SETTING_KEYS.initialCapital,
+          setting_value: String(settings.initialCapital || 0),
+        },
+        {
+          setting_key: SETTING_KEYS.targetCapital,
+          setting_value: String(settings.targetCapital || 0),
+        },
+      ];
 
-        const { data: existingRows, error: existingError } = await supabase
-          .from("app_settings")
-          .select("id, setting_key")
-          .in("setting_key", appSettings.map((item) => item.setting_key));
+      const { error: upsertError } = await supabase
+        .from("app_settings")
+        .upsert(settingsRows, {
+          onConflict: "setting_key",
+        });
 
-        if (existingError) {
-          throw existingError;
-        }
+      if (upsertError) throw upsertError;
 
-        const existingKeys = new Set((existingRows || []).map((row) => row.setting_key));
-
-        await Promise.all(
-          appSettings.map(async (item) => {
-            if (existingKeys.has(item.setting_key)) {
-              await supabase
-                .from("app_settings")
-                .update({ setting_value: item.setting_value })
-                .eq("setting_key", item.setting_key);
-            } else {
-              await supabase.from("app_settings").insert(item);
-            }
+      if (ownerIdentifier) {
+        const { error: employeeUpdateError } = await supabase
+          .from("employees")
+          .update({
+            business_name: settings.businessName.trim(),
           })
-        );
-      } catch (dbError) {
-        console.error("Error saving to database:", dbError);
-        // Continue - localStorage save was successful
+          .eq("created_by", ownerIdentifier);
+
+        if (employeeUpdateError) throw employeeUpdateError;
       }
 
-      toast.success("Settings saved successfully! ✨");
+      await auth.refreshProfile();
+      toast.success("Settings saved successfully.");
     } catch (error) {
       console.error("Error saving settings:", error);
-      toast.error("Failed to save settings");
+      toast.error("Failed to save settings.");
     } finally {
       setSaving(false);
     }
   };
 
   const handleFactoryReset = async () => {
+    if (!isOwner) {
+      toast.error("Only the owner can reset the business.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "This will clear settings and owner-linked records that can be safely reset with the current schema. Continue?"
+    );
+    if (!confirmed) return;
+
+    setClearing(true);
+
     try {
-      setClearing(true);
+      const tasks = await Promise.allSettled([
+        supabase.from("app_settings").delete().in("setting_key", [
+          SETTING_KEYS.initialCapital,
+          SETTING_KEYS.targetCapital,
+        ]),
+        ownerIdentifier
+          ? supabase.from("customers").delete().eq("added_by", ownerIdentifier)
+          : Promise.resolve(null),
+        ownerIdentifier
+          ? supabase.from("transactions").delete().eq("created_by", ownerIdentifier)
+          : Promise.resolve(null),
+      ]);
 
-      await supabase.from("customers").delete();
-      await supabase.from("sales").delete();
-      await supabase.from("inventory_items").delete();
-      await supabase.from("app_settings").delete();
-      await supabase.from("profiles").delete();
+      const failed = tasks.filter((result) => result.status === "rejected");
 
-      localStorage.clear();
+      if (failed.length > 0) {
+        throw new Error("Some reset operations failed.");
+      }
 
-      toast.success("Factory reset complete! The app is now empty and ready to start fresh. ✨");
+      setSettings((prev) => ({
+        ...prev,
+        initialCapital: 0,
+        targetCapital: 0,
+      }));
 
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 1000);
+      toast.success("Factory reset completed.");
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       console.error("Error during factory reset:", error);
-      toast.error("Failed to reset data");
+      toast.error("Failed to reset business data.");
     } finally {
       setClearing(false);
     }
   };
 
-  if (loading) {
+  if (auth.isLoading || loading) {
+    return <div style={{ padding: 24 }}>Loading settings...</div>;
+  }
+
+  if (!canUsePage) {
+    return <div style={{ padding: 24 }}>Unable to load settings.</div>;
+  }
+
+  if (!isOwner) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-slate-600">Loading settings...</p>
+      <div style={S.page}>
+        <div style={S.blob1} />
+        <div style={S.blob2} />
+
+        <button
+          type="button"
+          onClick={() => navigate("/dashboard")}
+          style={{
+            position: "absolute",
+            top: 20,
+            left: 20,
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            background: "rgba(255,255,255,0.9)",
+            border: "none",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+            zIndex: 10,
+          }}
+        >
+          <ArrowLeft size={20} />
+        </button>
+
+        <div style={S.card}>
+          <div style={S.logoWrap}>
+            <img
+              src={logo}
+              alt="TradeWFriend+"
+              style={{ width: 42, height: 42, objectFit: "contain" }}
+            />
+          </div>
+
+          <div style={S.appName}>Settings</div>
+          <div style={S.subtitle}>This section is owner-only.</div>
+
+          <div style={S.section}>
+            <div style={S.sectionTitle}>
+              <AlertTriangle size={16} color="#dc2626" />
+              Access restricted
+            </div>
+            <div style={S.sectionText}>
+              Employees should not control business settings, employee management, or factory reset.
+            </div>
+            <button type="button" style={S.btnOutline} onClick={() => navigate("/dashboard")}>
+              <ArrowLeft size={16} />
+              Back to dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -271,8 +431,8 @@ export const Settings = () => {
       <div style={S.blob1} />
       <div style={S.blob2} />
 
-      {/* Back Button */}
       <button
+        type="button"
         onClick={() => navigate("/dashboard")}
         style={{
           position: "absolute",
@@ -291,107 +451,120 @@ export const Settings = () => {
           zIndex: 10,
         }}
       >
-        <ArrowLeft size={20} style={{ color: "#64748b" }} />
+        <ArrowLeft size={20} />
       </button>
 
       <div style={S.card}>
         <div style={S.logoWrap}>
-          <img src={logo} alt="Logo" style={{ width: 40, height: 40, objectFit: 'contain' }} />
+          <img
+            src={logo}
+            alt="TradeWFriend+"
+            style={{ width: 42, height: 42, objectFit: "contain" }}
+          />
         </div>
-        <h1 style={S.appName}>Settings</h1>
-        <p style={S.subtitle}>
-          <Gem size={16} />
-          Configure your business
-        </p>
 
-        <div className="space-y-6">
-          {/* Business Name */}
-          <div>
-            <label style={S.label}>Business Name</label>
-            <input
-              style={S.input}
-              type="text"
-              value={settings.businessName}
-              onChange={(e) =>
-                setSettings({ ...settings, businessName: e.target.value })
-              }
-              placeholder="Enter your business name"
-            />
+        <div style={S.appName}>Settings</div>
+        <div style={S.subtitle}>Owner controls for your business</div>
+
+        <div style={S.section}>
+          <div style={S.sectionTitle}>
+            <Crown size={16} color="#d97706" />
+            Business settings
+          </div>
+          <div style={S.sectionText}>
+            Change the business name used for employees and the stored financial setting values.
           </div>
 
-          {/* Initial Capital */}
-          <div>
-            <label style={S.label}>Initial Capital</label>
-            <input
-              style={S.input}
-              type="number"
-              value={settings.initialCapital}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  initialCapital: parseFloat(e.target.value) || 0,
-                })
-              }
-              placeholder="0"
-            />
-          </div>
+          <label style={S.label}>Business Name</label>
+          <input
+            value={settings.businessName}
+            onChange={(e) =>
+              setSettings((prev) => ({
+                ...prev,
+                businessName: e.target.value,
+              }))
+            }
+            placeholder="Enter your business name"
+            style={S.input}
+            onFocus={focusStyle}
+            onBlur={blurStyle}
+          />
 
-          {/* Target Capital */}
-          <div>
-            <label style={S.label}>Target Capital</label>
-            <input
-              style={S.input}
-              type="number"
-              value={settings.targetCapital || 0}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  targetCapital: parseFloat(e.target.value) || 0,
-                })
-              }
-              placeholder="0"
-            />
-          </div>
+          <div style={{ height: 12 }} />
 
-          <button
-            style={S.btn}
-            onClick={handleSave}
-            disabled={saving}
-          >
-            <Save size={16} />
+          <label style={S.label}>Initial Capital</label>
+          <input
+            type="number"
+            value={settings.initialCapital}
+            onChange={(e) =>
+              setSettings((prev) => ({
+                ...prev,
+                initialCapital: Number(e.target.value) || 0,
+              }))
+            }
+            placeholder="0"
+            style={S.input}
+            onFocus={focusStyle}
+            onBlur={blurStyle}
+          />
+
+          <div style={{ height: 12 }} />
+
+          <label style={S.label}>Target Capital</label>
+          <input
+            type="number"
+            value={settings.targetCapital}
+            onChange={(e) =>
+              setSettings((prev) => ({
+                ...prev,
+                targetCapital: Number(e.target.value) || 0,
+              }))
+            }
+            placeholder="0"
+            style={S.input}
+            onFocus={focusStyle}
+            onBlur={blurStyle}
+          />
+
+          <button type="button" style={S.btnPrimary} onClick={handleSave} disabled={saving}>
+            <Save size={18} />
             {saving ? "Saving..." : "Save Settings"}
           </button>
         </div>
 
-        <div style={S.neonLine} />
+        <div style={S.section}>
+          <div style={S.sectionTitle}>
+            <Users size={16} color="#2563eb" />
+            Employee management
+          </div>
+          <div style={S.sectionText}>
+            Employee accounts should only be created and controlled under the owner account.
+          </div>
+          <button type="button" style={S.btnOutline} onClick={() => navigate("/employees")}>
+            Manage Employees
+          </button>
+        </div>
 
-        {/* Danger Zone */}
-        <div className="space-y-4">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button
-                style={{ ...S.btn, background: "linear-gradient(135deg,#dc2626,#b91c1c)", marginTop: 0 }}
-              >
-                <RotateCcw size={16} />
-                Factory Reset
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will delete all data.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleFactoryReset}
-                style={{ background: "#dc2626" }}
-              >
-                {clearing ? "Clearing..." : "Reset"}
-              </AlertDialogAction>
-            </AlertDialogContent>
-          </AlertDialog>
+        <div
+          style={{
+            ...S.section,
+            border: "1px solid rgba(220,38,38,0.18)",
+            background: "rgba(254,242,242,0.6)",
+          }}
+        >
+          <div style={S.sectionTitle}>
+            <AlertTriangle size={16} color="#dc2626" />
+            Danger zone
+          </div>
+          <div style={S.sectionText}>
+            This reset matches your current database structure. It clears saved financial settings and
+            owner-linked customer and transaction records.
+          </div>
+
+          <button type="button" style={S.btnDanger} onClick={handleFactoryReset} disabled={clearing}>
+            <RotateCcw size={18} />
+            {clearing ? "Resetting..." : "Factory Reset"}
+          </button>
         </div>
       </div>
     </div>

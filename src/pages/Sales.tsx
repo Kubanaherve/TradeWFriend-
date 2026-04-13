@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Calendar, Download, TrendingUp, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/kinyarwanda";
 import {
@@ -8,8 +10,6 @@ import {
   getDateKeyFromIso,
   isDateInFilter,
 } from "@/lib/reporting";
-import { ArrowLeft, Calendar, Download, TrendingUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 type FilterOption = "today" | "week" | "month" | "all";
@@ -64,31 +64,34 @@ const MONTH_LABELS = [
 
 const ReportsPage = () => {
   const navigate = useNavigate();
+
   const [reports, setReports] = useState<DailyReport[]>([]);
   const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState<FilterOption>("all");
   const [summary, setSummary] = useState({
     receivedTotal: 0,
     unpaidDebt: 0,
     expectedTotal: 0,
   });
-  const [filter, setFilter] = useState<FilterOption>("all");
 
   const fetchReports = useCallback(async () => {
     setLoading(true);
 
     try {
-      const [{ data: salesData, error: salesError }, { data: settingsData, error: settingsError }] =
-        await Promise.all([
-          supabase.from("sales").select("sale_price, quantity, created_at"),
-          supabase.from("app_settings").select("setting_key, setting_value"),
-        ]);
+      const [
+        { data: salesData, error: salesError },
+        { data: settingsData, error: settingsError },
+      ] = await Promise.all([
+        supabase.from("sales").select("sale_price, quantity, created_at"),
+        supabase.from("app_settings").select("setting_key, setting_value"),
+      ]);
 
       if (salesError) throw salesError;
       if (settingsError) throw settingsError;
 
       const dailyMap: Record<string, DailyAccumulator> = {};
 
-      const getOrCreate = (date: string) => {
+      const getOrCreate = (date: string): DailyAccumulator => {
         if (!dailyMap[date]) {
           dailyMap[date] = {
             date,
@@ -97,25 +100,20 @@ const ReportsPage = () => {
             newDebt: 0,
           };
         }
-
         return dailyMap[date];
       };
 
-      (salesData || []).forEach((sale) => {
+      (salesData ?? []).forEach((sale) => {
         const dateKey = getDateKeyFromIso(sale.created_at);
         const entry = getOrCreate(dateKey);
-        entry.salesTotal +=
-          (Number(sale.sale_price) || 0) * (Number(sale.quantity) || 0);
+        entry.salesTotal += (Number(sale.sale_price) || 0) * (Number(sale.quantity) || 0);
       });
 
-      (settingsData || []).forEach((setting) => {
+      (settingsData ?? []).forEach((setting) => {
         const value = Number(setting.setting_value) || 0;
 
         if (setting.setting_key.startsWith(DAILY_CUSTOMER_PAYMENTS_PREFIX)) {
-          const dateKey = setting.setting_key.replace(
-            DAILY_CUSTOMER_PAYMENTS_PREFIX,
-            ""
-          );
+          const dateKey = setting.setting_key.replace(DAILY_CUSTOMER_PAYMENTS_PREFIX, "");
           const entry = getOrCreate(dateKey);
           entry.debtsPaid += value;
         }
@@ -128,38 +126,29 @@ const ReportsPage = () => {
       });
 
       const now = new Date();
-      const result = Object.values(dailyMap)
+
+      const result: DailyReport[] = Object.values(dailyMap)
         .filter((entry) => isDateInFilter(entry.date, filter, now))
-        .map<DailyReport>((entry) => {
-          const remainingDebt = Math.max(entry.newDebt - entry.debtsPaid, 0);
-          // total debts = debts already paid + remaining unpaid debts
-          const totalDebts = entry.debtsPaid + remainingDebt;
+        .map((entry) => {
+          const unpaidDebt = Math.max(entry.newDebt - entry.debtsPaid, 0);
+          const totalDebtForDay = entry.debtsPaid + unpaidDebt;
 
           return {
             date: entry.date,
             debtsPaid: entry.debtsPaid,
             salesTotal: entry.salesTotal,
-            unpaidDebt: remainingDebt,
+            unpaidDebt,
             receivedTotal: entry.salesTotal + entry.debtsPaid,
-            expectedTotal: entry.salesTotal + totalDebts,
+            expectedTotal: entry.salesTotal + totalDebtForDay,
           };
         })
         .sort((a, b) => b.date.localeCompare(a.date));
 
       setReports(result);
       setSummary({
-        receivedTotal: result.reduce(
-          (sum, report) => sum + report.receivedTotal,
-          0
-        ),
-        unpaidDebt: result.reduce(
-          (sum, report) => sum + report.unpaidDebt,
-          0
-        ),
-        expectedTotal: result.reduce(
-          (sum, report) => sum + report.expectedTotal,
-          0
-        ),
+        receivedTotal: result.reduce((sum, report) => sum + report.receivedTotal, 0),
+        unpaidDebt: result.reduce((sum, report) => sum + report.unpaidDebt, 0),
+        expectedTotal: result.reduce((sum, report) => sum + report.expectedTotal, 0),
       });
     } catch (error) {
       console.error("Fetch reports error:", error);
@@ -170,24 +159,30 @@ const ReportsPage = () => {
   }, [filter]);
 
   useEffect(() => {
-    fetchReports();
+    void fetchReports();
   }, [fetchReports]);
 
   useEffect(() => {
     const refreshReports = () => {
-      fetchReports();
+      void fetchReports();
     };
 
-    window.addEventListener("paymentMade", refreshReports);
-    window.addEventListener("newDebtAdded", refreshReports);
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        void fetchReports();
+      }
+    };
+
+    window.addEventListener("paymentMade", refreshReports as EventListener);
+    window.addEventListener("newDebtAdded", refreshReports as EventListener);
     window.addEventListener("focus", refreshReports);
-    document.addEventListener("visibilitychange", refreshReports);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
-      window.removeEventListener("paymentMade", refreshReports);
-      window.removeEventListener("newDebtAdded", refreshReports);
+      window.removeEventListener("paymentMade", refreshReports as EventListener);
+      window.removeEventListener("newDebtAdded", refreshReports as EventListener);
       window.removeEventListener("focus", refreshReports);
-      document.removeEventListener("visibilitychange", refreshReports);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [fetchReports]);
 
@@ -197,34 +192,33 @@ const ReportsPage = () => {
       MONTH_LABELS[date.getMonth()]
     } ${date.getFullYear()}`;
   };
+
   const deleteTodayData = async () => {
-  const confirm = window.confirm(
-    "Ugiye gusiba amafaranga yose y'uyu munsi (sales n'amadeni). Uzi neza?"
-  );
+    const confirmed = window.confirm(
+      "Ugiye gusiba amafaranga yose y'uyu munsi, harimo sales n'inyandiko z'ideni. Uzi neza?"
+    );
+    if (!confirmed) return;
 
-  if (!confirm) return;
+    try {
+      const todayKey = getDateKeyFromIso(new Date().toISOString());
+      const start = new Date(`${todayKey}T00:00:00`);
+      const end = new Date(`${todayKey}T23:59:59.999`);
 
-  try {
-    const todayKey = getDateKeyFromIso(new Date().toISOString());
-    const start = new Date(`${todayKey}T00:00:00`);
-    const end = new Date(`${todayKey}T23:59:59.999`);
+      const { error: salesError } = await supabase
+        .from("sales")
+        .delete()
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString());
 
-    // 1. Delete today's sales
-    const { error: salesError } = await supabase
-      .from("sales")
-      .delete()
-      .gte("created_at", start.toISOString())
-      .lte("created_at", end.toISOString());
+      if (salesError) throw salesError;
 
-    if (salesError) throw salesError;
+      const { data: settings, error: settingsError } = await supabase
+        .from("app_settings")
+        .select("setting_key");
 
-    // 2. Delete today's debt/payment settings
-    const { data: settings } = await supabase
-      .from("app_settings")
-      .select("setting_key");
+      if (settingsError) throw settingsError;
 
-    const todayDebtKeys =
-      (settings || [])
+      const todayDebtKeys = (settings ?? [])
         .map((s) => s.setting_key)
         .filter(
           (key) =>
@@ -232,26 +226,27 @@ const ReportsPage = () => {
             key.startsWith(DAILY_NEW_DEBT_PREFIX + todayKey)
         );
 
-    if (todayDebtKeys.length > 0) {
-      const { error: settingsDeleteError } = await supabase
-        .from("app_settings")
-        .delete()
-        .in("setting_key", todayDebtKeys);
+      if (todayDebtKeys.length > 0) {
+        const { error: settingsDeleteError } = await supabase
+          .from("app_settings")
+          .delete()
+          .in("setting_key", todayDebtKeys);
 
-      if (settingsDeleteError) throw settingsDeleteError;
+        if (settingsDeleteError) throw settingsDeleteError;
+      }
+
+      toast.success("Amakuru y'uyu munsi yasibwe neza");
+      await fetchReports();
+    } catch (error) {
+      console.error("Delete today data error:", error);
+      toast.error("Habaye ikibazo mu gusiba data y'uyu munsi");
     }
+  };
 
-    toast.success("Amakuru y'uyu munsi yasibwe neza");
-
-    fetchReports();
-  } catch (error) {
-    console.error(error);
-    toast.error("Habaye ikibazo mu gusiba data y'uyu munsi");
-  }
-};
   const downloadCSV = () => {
     const header =
       "Itariki,Amafaranga y'Ubucuruzi,Amafaranga y'Ideni Ryishyuwe,Ideni Ritarishyurwa,Igiteranyo Cyinjiye,Igiteranyo Gitegerejwe\n";
+
     const rows = reports
       .map(
         (report) =>
@@ -262,183 +257,176 @@ const ReportsPage = () => {
     const blob = new Blob([header + rows], {
       type: "text/csv;charset=utf-8;",
     });
+
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = `raporo-${getDateKeyFromIso(new Date().toISOString())}.csv`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
+
     toast.success("Raporo yamanitswe ✨");
   };
 
-  const isToday = (dateStr: string) =>
-    dateStr === getDateKeyFromIso(new Date().toISOString());
+  const isToday = (dateStr: string) => dateStr === getDateKeyFromIso(new Date().toISOString());
 
-  const filterTitle = {
-    today: "Raporo y'uyu munsi",
-    week: "Raporo y'iki cyumweru",
-    month: "Raporo y'uku kwezi",
-    all: "Raporo rusange",
-  }[filter];
+  const filterTitle = useMemo(
+    () =>
+      ({
+        today: "Raporo y'uyu munsi",
+        week: "Raporo y'iki cyumweru",
+        month: "Raporo y'uku kwezi",
+        all: "Raporo rusange",
+      })[filter],
+    [filter]
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted to-background">
-      <header className="sticky top-0 z-50 glass-card rounded-none border-x-0 border-t-0 py-3 px-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-6xl px-4 py-5">
+        <div className="mb-5 flex items-center justify-between gap-3">
           <button
+            type="button"
             onClick={() => navigate("/dashboard")}
-            className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center"
+            className="flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-200"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft className="h-5 w-5" />
           </button>
-          <h1 className="text-base font-bold">Raporo y'Amafaranga</h1>
-        </div>
-        <Button
-          onClick={downloadCSV}
-          size="sm"
-          className="btn-navy h-8 px-3 text-xs gap-1"
-        >
-          <Download size={14} />
-          CSV
-        </Button>
-        <Button
-  onClick={deleteTodayData}
-  size="sm"
-  variant="destructive"
-  className="h-8 px-3 text-xs gap-1"
->
-  Siba Uyu Munsi
-</Button>
-      </header>
 
-      <main className="p-4 max-w-lg mx-auto space-y-4 animate-fade-in">
-        <div className="space-y-1">
-          <h2 className="text-sm font-semibold text-foreground">{filterTitle}</h2>
-          <p className="text-xs text-muted-foreground">
-            Reba amafaranga y'ubucuruzi, ideni ryishyuwe, n'ayo ugitegereje kwakira.
-          </p>
-        </div>
-
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {FILTER_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              size="sm"
-              variant={filter === option.value ? "default" : "outline"}
-              onClick={() => setFilter(option.value)}
-              className="text-xs whitespace-nowrap"
-            >
-              {option.label}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={downloadCSV} disabled={reports.length === 0}>
+              <Download className="mr-2 h-4 w-4" />
+              CSV
             </Button>
-          ))}
-        </div>
 
-        <div className="glass-card-dark p-4 gold-glow">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp size={16} className="text-secondary" />
-            <span className="text-xs text-primary-foreground/70">
-              Igiteranyo Gitegerejwe
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-white">
-            {formatCurrency(summary.expectedTotal)}
-          </p>
-          <p className="text-[10px] text-primary-foreground/50 mt-1">
-            {reports.length} iminsi yanditswe
-          </p>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <div className="glass-card p-3">
-            <p className="text-[10px] text-muted-foreground">Amafaranga yinjijwe</p>
-            <p className="text-sm font-bold text-green-700">
-              {formatCurrency(summary.receivedTotal)}
-            </p>
-          </div>
-
-          <div className="glass-card p-3">
-            <p className="text-[10px] text-muted-foreground">Ideni ritarishyurwa</p>
-            <p className="text-sm font-bold text-red-700">
-              {formatCurrency(summary.unpaidDebt)}
-            </p>
-          </div>
-
-          <div className="glass-card p-3">
-            <p className="text-[10px] text-muted-foreground">Igiteranyo cyose</p>
-            <p className="text-sm font-bold text-blue-700">
-              {formatCurrency(summary.expectedTotal)}
-            </p>
+            <Button variant="destructive" onClick={deleteTodayData}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Siba Uyu Munsi
+            </Button>
           </div>
         </div>
 
-        {loading ? (
-          <div className="text-center py-12 text-muted-foreground text-sm">
-            Gutegereza...
+        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Raporo y'Amafaranga</h1>
+              <p className="mt-1 text-sm text-slate-600">
+                Reba amafaranga y'ubucuruzi, ideni ryishyuwe, n'ayo ugitegereje kwakira.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-2">
+              <Calendar className="h-4 w-4 text-slate-500" />
+              <span className="text-sm font-medium text-slate-600">{filterTitle}</span>
+            </div>
           </div>
-        ) : reports.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground text-sm">
-            Nta makuru ahari
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {reports.map((report) => (
-              <div
-                key={report.date}
-                className={`glass-card p-4 space-y-3 ${
-                  isToday(report.date) ? "border-2 border-green-400/60" : ""
-                }`}
+
+          <div className="mb-5 flex flex-wrap gap-2">
+            {FILTER_OPTIONS.map((option) => (
+              <Button
+                key={option.value}
+                variant={filter === option.value ? "default" : "outline"}
+                className="text-xs whitespace-nowrap"
+                onClick={() => setFilter(option.value)}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Calendar size={14} className="text-muted-foreground" />
-                    <span className="text-xs font-semibold">
-                      {formatDateLabel(report.date)}
-                      {isToday(report.date) && (
-                        <span className="ml-2 text-[10px] bg-green-500 text-white px-1.5 py-0.5 rounded-full">
-                          Uyu munsi
-                        </span>
-                      )}
-                    </span>
-                  </div>
-
-                  <span className="text-sm font-bold text-blue-600">
-                    {formatCurrency(report.expectedTotal)}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-green-50 rounded-lg p-2">
-                    <p className="text-[10px] text-green-500">Amafaranga yinjijwe</p>
-                    <p className="text-sm font-bold text-green-700">
-                      {formatCurrency(report.receivedTotal)}
-                    </p>
-                  </div>
-
-                  <div className="bg-red-50 rounded-lg p-2">
-                    <p className="text-[10px] text-red-500">Ideni ritarishyurwa</p>
-                    <p className="text-sm font-bold text-red-700">
-                      {formatCurrency(report.unpaidDebt)}
-                    </p>
-                  </div>
-
-                  <div className="bg-blue-50 rounded-lg p-2">
-                    <p className="text-[10px] text-blue-500">Igiteranyo cyose</p>
-                    <p className="text-sm font-bold text-blue-700">
-                      {formatCurrency(report.expectedTotal)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 text-[10px] text-muted-foreground">
-                  <div>Ubucuruzi: {formatCurrency(report.salesTotal)}</div>
-                  <div>Ideni ryishyuwe: {formatCurrency(report.debtsPaid)}</div>
-                  <div>Ideni ryo kuri uwo munsi: {formatCurrency(report.unpaidDebt)}</div>
-                </div>
-              </div>
+                {option.label}
+              </Button>
             ))}
           </div>
-        )}
-      </main>
+
+          <div className="mb-6 grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl bg-slate-900 p-5 text-white">
+              <div className="mb-2 flex items-center gap-2 text-sm text-slate-300">
+                <TrendingUp className="h-4 w-4" />
+                Igiteranyo Gitegerejwe
+              </div>
+              <div className="text-2xl font-bold">{formatCurrency(summary.expectedTotal)}</div>
+              <div className="mt-2 text-xs text-slate-400">{reports.length} iminsi yanditswe</div>
+            </div>
+
+            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+              <div className="text-sm text-slate-500">Amafaranga yinjijwe</div>
+              <div className="mt-2 text-xl font-bold text-slate-900">
+                {formatCurrency(summary.receivedTotal)}
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+              <div className="text-sm text-slate-500">Ideni ritarishyurwa</div>
+              <div className="mt-2 text-xl font-bold text-slate-900">
+                {formatCurrency(summary.unpaidDebt)}
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="rounded-2xl bg-white p-10 text-center text-slate-500 shadow-sm ring-1 ring-slate-200">
+              Gutegereza...
+            </div>
+          ) : reports.length === 0 ? (
+            <div className="rounded-2xl bg-white p-10 text-center text-slate-500 shadow-sm ring-1 ring-slate-200">
+              Nta makuru ahari
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {reports.map((report) => (
+                <div
+                  key={report.date}
+                  className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"
+                >
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-slate-900">{formatDateLabel(report.date)}</h3>
+                        {isToday(report.date) && (
+                          <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">
+                            Uyu munsi
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Igiteranyo cyose: {formatCurrency(report.expectedTotal)}
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-sm text-slate-500">Amafaranga yinjijwe</div>
+                      <div className="text-lg font-bold text-slate-900">
+                        {formatCurrency(report.receivedTotal)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <div className="text-xs text-slate-500">Ubucuruzi</div>
+                      <div className="mt-1 font-semibold text-slate-900">
+                        {formatCurrency(report.salesTotal)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <div className="text-xs text-slate-500">Ideni ryishyuwe</div>
+                      <div className="mt-1 font-semibold text-slate-900">
+                        {formatCurrency(report.debtsPaid)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <div className="text-xs text-slate-500">Ideni ritarishyurwa</div>
+                      <div className="mt-1 font-semibold text-slate-900">
+                        {formatCurrency(report.unpaidDebt)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

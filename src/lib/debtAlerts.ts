@@ -188,7 +188,7 @@ export const recordAppActivity = () => {
   localStorage.setItem(LAST_ACTIVE_STORAGE_KEY, new Date().toISOString());
 };
 
-export const notifyIfInactiveForTenHours = async () => {
+export const notifyIfInactiveForTenHours = async (businessName: string = "TradeWFriend+") => {
   if (typeof window === "undefined" || !("Notification" in window)) {
     return;
   }
@@ -214,7 +214,7 @@ export const notifyIfInactiveForTenHours = async () => {
     return;
   }
 
-  new Notification("Jeanne Friend Jewelry", {
+  new Notification(businessName, {
     body: "Maze amasaha 10 ukoresheje app. Reba amadeni n'ubutumwa bushya muri inbox.",
     tag: "inactive-10-hours",
   });

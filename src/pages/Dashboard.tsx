@@ -1,45 +1,26 @@
 // DashboardPage.tsx
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { labels, formatCurrency } from "@/lib/kinyarwanda";
 import { useBusinessSettings } from "@/hooks/useBusinessSettings";
-import {
-  DAILY_CUSTOMER_PAYMENTS_PREFIX,
-  DAILY_NEW_DEBT_PREFIX, // Ongeraho iyi kugira ngo dufate ideni rishya neza
-  getDateKeyFromIso,
-} from "@/lib/reporting";
-import {
-  buildDebtAlerts,
-  notifyDebtAlerts,
-  notifyIfInactiveForTenHours,
-  recordAppActivity,
-  type DebtAlertCustomer,
-} from "@/lib/debtAlerts";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppStore } from "@/store/AppStore";
 import { supabase } from "@/integrations/supabase/client";
-import { 
-  Plus, 
-  List, 
-  TrendingUp, 
-  DollarSign, 
-  LogOut, 
+import {
+  Plus,
+  List,
+  TrendingUp,
+  DollarSign,
+  LogOut,
   Gem,
   Users,
   Package,
   Download,
-  Trash2,
   Settings,
   Bell,
-  ShieldAlert
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { ChangePinCard } from "@/components/ChangePinCard";
@@ -177,196 +158,83 @@ const S = {
 };
 
 interface DashboardStats {
-  totalUnpaid: number;
-  totalCustomers: number;
   totalSales: number;
-  todaySales: number;
+  totalDebt: number;
+  totalPayments: number;
+  todayRevenue: number;
   todayDebt: number;
+  totalCustomers: number;
 }
-
-// 🚀 PRO CACHE MEMORY: Yerekana imibare ako kanya 
-const loadCachedStats = (): DashboardStats => {
-  const cached = localStorage.getItem("dashboard_stats_cache");
-  if (cached) {
-    try {
-      return JSON.parse(cached);
-    } catch (e) {
-      console.error("Cache parsing error", e);
-    }
-  }
-  return { totalUnpaid: 0, totalCustomers: 0, totalSales: 0, todaySales: 0, todayDebt: 0 };
-};
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, logout, isAuthenticated, isLoading: authLoading } = useAuth();
   const { settings: businessSettings } = useBusinessSettings();
-  const isOwner = profile?.role === 'owner';
+  const { totalSales, totalDebt, totalPayments, todayRevenue, todayDebt, isLoading: transactionsLoading, loadTransactions } = useAppStore();
+  const isOwner = profile?.role === "owner";
 
-  const [stats, setStats] = useState<DashboardStats>(loadCachedStats);
+  const [totalCustomers, setTotalCustomers] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const [showResetMoneyModal, setShowResetMoneyModal] = useState(false);
-  const [showResetModal, setShowResetModal] = useState(false);
-  const [isResettingMoney, setIsResettingMoney] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
+  const totalUnpaid = totalDebt;
+  const stats: DashboardStats = {
+    totalSales,
+    totalDebt,
+    totalPayments,
+    todayRevenue,
+    todayDebt,
+    totalCustomers,
+  };
 
-  // 🚀 Logic ihuje neza n'iya ReportsPage.tsx kugira imibare ibe kimwe 100%
-  const fetchStats = useCallback(async () => {
-    try {
-      const todayKey = getDateKeyFromIso(new Date().toISOString());
-
-      const [
-        { data: salesData, error: salesError },
-        { data: customers, error: customersError },
-        { data: settingsData, error: settingsError },
-      ] = await Promise.all([
-        supabase.from("sales").select("sale_price, quantity, created_at"),
-        supabase.from("customers").select("id, name, phone, amount, is_paid, created_at, due_date"),
-        supabase.from("app_settings").select("setting_key, setting_value"),
-      ]);
-
-      if (salesError) throw salesError;
-      if (customersError) throw customersError;
-      if (settingsError) throw settingsError;
-
-      // 1. Ubucuruzi (Sales Table)
-      let salesTotalAllTime = 0;
-      let salesTodayOnly = 0;
-
-      (salesData || []).forEach((sale) => {
-        const saleAmount = (Number(sale.sale_price) || 0) * (Number(sale.quantity) || 0);
-        salesTotalAllTime += saleAmount;
-        if (getDateKeyFromIso(sale.created_at) === todayKey) {
-          salesTodayOnly += saleAmount;
-        }
-      });
-
-      // 2. Abakiriya (Customers Table)
-      const totalUnpaid = (customers || []).reduce((sum, customer) => {
-        return customer.is_paid ? sum : sum + Number(customer.amount || 0);
-      }, 0);
-      const totalCustomers = (customers || []).length;
-
-      // 3. Settings (Total Paid, Debts Paid Today, New Debt Today)
-      const settingsMap = (settingsData || []).reduce<Record<string, number>>(
-        (acc, row) => {
-          acc[row.setting_key] = Number(row.setting_value) || 0;
-          return acc;
-        },
-        {}
-      );
-
-      const totalPaidAllTime = settingsMap["total_paid"] || 0;
-      const debtsPaidToday = settingsMap[`${DAILY_CUSTOMER_PAYMENTS_PREFIX}${todayKey}`] || 0;
-      
-      // 🚀 Efficient & accurate: calculate today's debt directly from database
-      let newDebtToday = 0;
-
-      (customers || []).forEach((customer) => {
-        if (
-          !customer.is_paid &&
-          getDateKeyFromIso(customer.created_at) === todayKey
-        ) {
-          newDebtToday += Number(customer.amount || 0);
-        }
-      });
-
-      // 4. Kuvanga imibare
-      const newStats = {
-        totalUnpaid,
-        totalCustomers,
-        totalSales: salesTotalAllTime + totalPaidAllTime,
-        todaySales: salesTodayOnly + debtsPaidToday, // Ibyo wacuruje + Ideni ryishyuwe uyu munsi
-        todayDebt: newDebtToday, // Ideni watanze uyu munsi
-      };
-
-      // 🚀 Save state and Update Cache Instantly
-      setStats(newStats);
-      localStorage.setItem("dashboard_stats_cache", JSON.stringify(newStats));
-
-      await notifyDebtAlerts(buildDebtAlerts((customers || []) as DebtAlertCustomer[]));
-    } catch (error) {
-      console.error("Fetch stats error:", error);
-    }
-  }, []);
-
-  // Handle Authentication and Mount
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate("/");
-      return;
-    }
-    if (isAuthenticated) {
-      fetchStats();
-    }
-  }, [isAuthenticated, authLoading, navigate, fetchStats, location.pathname]);
-
-  // 🚀 Auto-Reload Events: Iyi code ituma ihita yi-reloada ugiye mu yindi page ukagaruka cyangwa ukoze action
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    notifyIfInactiveForTenHours();
-    recordAppActivity();
+    const fetchCustomerCount = async () => {
+      const { count, error } = await supabase
+        .from("customers")
+        .select("id", { count: "exact", head: true });
 
-    const handleAutoRefresh = () => {
-      recordAppActivity();
-      fetchStats(); 
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        handleAutoRefresh();
+      if (!error) {
+        setTotalCustomers(count ?? 0);
       }
     };
 
-    // Buri gihe hishyuwe cyangwa ideni rishyizwemo, hitamo kuvugurura imibare ako kanya
-    window.addEventListener("paymentMade", handleAutoRefresh);
-    window.addEventListener("newDebtAdded", handleAutoRefresh);
-    window.addEventListener("focus", handleAutoRefresh);
+    void loadTransactions();
+    void fetchCustomerCount();
+  }, [isAuthenticated, loadTransactions]);
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate("/");
+    }
+  }, [isAuthenticated, authLoading, navigate]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const refreshDashboard = () => {
+      setIsRefreshing(true);
+      Promise.all([loadTransactions()])
+        .finally(() => setIsRefreshing(false));
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshDashboard();
+    };
+
+    window.addEventListener("paymentMade", refreshDashboard);
+    window.addEventListener("newDebtAdded", refreshDashboard);
+    window.addEventListener("focus", refreshDashboard);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      window.removeEventListener("paymentMade", handleAutoRefresh);
-      window.removeEventListener("newDebtAdded", handleAutoRefresh);
-      window.removeEventListener("focus", handleAutoRefresh);
+      window.removeEventListener("paymentMade", refreshDashboard);
+      window.removeEventListener("newDebtAdded", refreshDashboard);
+      window.removeEventListener("focus", refreshDashboard);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isAuthenticated, fetchStats]);
-
-
-  const handleResetMoney = async () => {
-    setIsResettingMoney(true);
-    try {
-      await supabase.from("app_settings").update({ setting_value: "0" }).eq("setting_key", "total_capital");
-      await supabase.from("app_settings").update({ setting_value: "0" }).eq("setting_key", "total_paid");
-      toast.success("Amafaranga yose yinjijwe yasubijwe kuri 0 ✨");
-      setShowResetMoneyModal(false);
-      fetchStats();
-    } catch (error) {
-      console.error("Reset money error:", error);
-      toast.error("Habaye ikosa");
-    } finally {
-      setIsResettingMoney(false);
-    }
-  };
-
-  const handleResetAll = async () => {
-    setIsResetting(true);
-    try {
-      await supabase.from("sales").delete();
-      await supabase.from("app_settings").update({ setting_value: "0" }).in("setting_key", ["total_capital", "total_paid"]);
-      await supabase.from("customers").update({ is_paid: false, paid_at: null }).eq("is_paid", true);
-      toast.success(labels.resetSuccess + " ✨");
-      setShowResetModal(false);
-      fetchStats();
-    } catch (error) {
-      console.error("Reset error:", error);
-      toast.error("Habaye ikosa");
-    } finally {
-      setIsResetting(false);
-    }
-  };
+  }, [isAuthenticated, loadTransactions]);
 
   const handleLogout = async () => {
     await logout();
@@ -393,7 +261,7 @@ const DashboardPage = () => {
             <div>
               <h1 className="text-sm font-bold text-foreground" style={{ fontSize: '14px', fontWeight: 600 }}>{businessSettings.businessName}</h1>
               <p className="text-[10px] text-muted-foreground" style={{ fontSize: '11px', color: '#64748b' }}>
-                {labels.welcome}, {profile?.display_name || 'User'}! 📊
+                {labels.welcome}, {profile?.displayName || 'User'}! 📊
               </p>
             </div>
           </div>
@@ -419,7 +287,7 @@ const DashboardPage = () => {
               </div>
               <span className="text-[10px] text-muted-foreground" style={{ fontSize: '11px', color: '#6b7280', fontWeight: 500 }}>{labels.totalUnpaid}</span>
             </div>
-            <p className="text-lg font-bold text-red-600" style={{ fontSize: '18px', fontWeight: 700, color: '#dc2626' }}>{formatCurrency(stats.totalUnpaid)}</p>
+            <p className="text-lg font-bold text-red-600" style={{ fontSize: '18px', fontWeight: 700, color: '#dc2626' }}>{formatCurrency(stats.totalDebt)}</p>
           </div>
 
           {/* Total Customers */}
@@ -443,7 +311,7 @@ const DashboardPage = () => {
             <span className="text-[10px] text-muted-foreground" style={{ fontSize: '11px', color: '#6b7280', fontWeight: 500 }}>Ibyo wacuruje uyu munsi</span>
           </div>
           <p className="text-lg font-bold text-green-600" style={{ fontSize: '18px', fontWeight: 700, color: '#16a34a' }}>
-            {formatCurrency(stats.todaySales)}
+            {formatCurrency(stats.todayRevenue)}
           </p>
         </div>
 
@@ -535,63 +403,32 @@ const DashboardPage = () => {
           ))}
         </div>
 
-        {/* Settings Section */}
-        {isOwner ? (
-          <div className="pt-4 space-y-3">
-            <ChangePinCard />
-            <Button onClick={() => setShowResetMoneyModal(true)} variant="outline" className="w-full border-warning/50 text-warning">
-              <DollarSign size={16} className="mr-2" /> Siba amafaranga (Owner Only)
-            </Button>
-            <Button onClick={() => setShowResetModal(true)} variant="outline" className="w-full border-destructive/50 text-destructive">
-              <Trash2 size={16} className="mr-2" /> {labels.resetAll} (Owner Only)
-            </Button>
-
-            {/* Neon Acknowledgment */}
-            <div className="mt-6 flex justify-center">
-              <div className="glass-card-neon p-3 px-4 rounded-xl text-center" style={{ background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9))', border: '1px solid rgba(168, 85, 247, 0.3)', boxShadow: '0 8px 32px rgba(168, 85, 247, 0.2)' }}>
-                <p className="neon-text-dark font-bold text-sm md:text-base animate-neon-flicker" style={{ fontSize: '14px', fontWeight: 700, color: '#e879f9', textShadow: '0 0 10px rgba(232, 121, 249, 0.5)' }}>
-                  Iyi app yakozwe na Friend Herve KUBANA
-                </p>
+        {/* Settings & Permissions */}
+        <div className="pt-4 space-y-3">
+          <ChangePinCard />
+          {isOwner ? (
+            <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-500 mb-2">Owner control</p>
+              <p className="text-sm text-slate-700">
+                All factory reset and employee management actions are available from Settings.
+                This dashboard only shows your real-time financial summary.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4 text-blue-700">
+              <div className="flex items-start gap-3">
+                <ShieldAlert size={18} />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.28em]">Umukozi</p>
+                  <p className="text-sm">Nta burenganzira bwo gukora factory reset cyangwa guhindura konti.</p>
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="p-4 bg-blue-50 rounded-xl flex items-center gap-3 text-blue-700">
-            <ShieldAlert size={20} />
-            <p className="text-xs font-medium">Uruhare rwawe ni 'Umukozi'. Uburenganzira bwo gusiba bufunitse.</p>
-          </div>
-        )}
+          )}
+        </div>
       </main>
 
       {/* --- Modals --- */}
-      {/* Reset Money Modal */}
-      <Dialog open={showResetMoneyModal} onOpenChange={setShowResetMoneyModal}>
-        <DialogContent className="max-w-sm mx-4 rounded-2xl space-y-4">
-          <DialogHeader>
-            <DialogTitle className="text-base">Siba amafaranga yinjijwe</DialogTitle>
-          </DialogHeader>
-          <p className="text-[12px] text-muted-foreground">Ibi bizasiba amafaranga yose yinjijwe (capital na total paid)</p>
-          <div className="flex gap-2">
-            <Button onClick={handleResetMoney} disabled={isResettingMoney} variant="destructive" className="flex-1">{isResettingMoney ? "Processing..." : "Yes, reset"}</Button>
-            <Button onClick={() => setShowResetMoneyModal(false)} variant="outline" className="flex-1">Cancel</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reset All Modal */}
-      <Dialog open={showResetModal} onOpenChange={setShowResetModal}>
-        <DialogContent className="max-w-sm mx-4 rounded-2xl space-y-4">
-          <DialogHeader>
-            <DialogTitle className="text-base">{labels.resetAll}</DialogTitle>
-          </DialogHeader>
-          <p className="text-[12px] text-muted-foreground">Ibi bizasiba ibicuruzwa byose, abakiriya, debts n'amafaranga yinjijwe</p>
-          <div className="flex gap-2">
-            <Button onClick={handleResetAll} disabled={isResetting} variant="destructive" className="flex-1">{isResetting ? "Processing..." : "Yes, reset"}</Button>
-            <Button onClick={() => setShowResetModal(false)} variant="outline" className="flex-1">Cancel</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
     </div>
   );
 };

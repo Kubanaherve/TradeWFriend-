@@ -37,6 +37,7 @@ export type Database = {
       }
       customers: {
         Row: {
+          added_by: string | null
           amount: number
           created_at: string
           due_date: string | null
@@ -49,6 +50,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          added_by?: string | null
           amount: number
           created_at?: string
           due_date?: string | null
@@ -61,6 +63,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          added_by?: string | null
           amount?: number
           created_at?: string
           due_date?: string | null
@@ -74,12 +77,79 @@ export type Database = {
         }
         Relationships: []
       }
+      employees: {
+        Row: {
+          business_name: string
+          created_at: string
+          created_by: string
+          display_name: string
+          id: string
+          phone: string
+          pin_hash: string
+        }
+        Insert: {
+          business_name: string
+          created_at?: string
+          created_by: string
+          display_name: string
+          id?: string
+          phone: string
+          pin_hash: string
+        }
+        Update: {
+          business_name?: string
+          created_at?: string
+          created_by?: string
+          display_name?: string
+          id?: string
+          phone?: string
+          pin_hash?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          date: string
+          description: string
+          id: string
+          metadata: Json | null
+          related_id: string | null
+          transaction_type: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          description: string
+          id?: string
+          metadata?: Json | null
+          related_id?: string | null
+          transaction_type: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          description?: string
+          id?: string
+          metadata?: Json | null
+          related_id?: string | null
+          transaction_type?: string
+        }
+        Relationships: []
+      }
       inventory_items: {
         Row: {
           cost_price: number
           created_at: string
           date_bought: string
           id: string
+          image_url: string | null
           item_name: string
           notes: string | null
           quantity: number
@@ -89,6 +159,7 @@ export type Database = {
           created_at?: string
           date_bought?: string
           id?: string
+          image_url?: string | null
           item_name: string
           notes?: string | null
           quantity?: number
@@ -98,11 +169,44 @@ export type Database = {
           created_at?: string
           date_bought?: string
           id?: string
+          image_url?: string | null
           item_name?: string
           notes?: string | null
           quantity?: number
         }
         Relationships: []
+      }
+      low_stock_alerts: {
+        Row: {
+          alert_threshold: number
+          created_at: string
+          id: string
+          inventory_item_id: string
+          is_active: boolean
+        }
+        Insert: {
+          alert_threshold?: number
+          created_at?: string
+          id?: string
+          inventory_item_id: string
+          is_active?: boolean
+        }
+        Update: {
+          alert_threshold?: number
+          created_at?: string
+          id?: string
+          inventory_item_id?: string
+          is_active?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "low_stock_alerts_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       profiles: {
         Row: {
@@ -133,6 +237,7 @@ export type Database = {
           cost_price: number
           created_at: string
           date_sold: string
+          employee_phone: string | null
           id: string
           item_name: string
           quantity: number
@@ -142,6 +247,7 @@ export type Database = {
           cost_price: number
           created_at?: string
           date_sold?: string
+          employee_phone?: string | null
           id?: string
           item_name: string
           quantity?: number
@@ -151,6 +257,7 @@ export type Database = {
           cost_price?: number
           created_at?: string
           date_sold?: string
+          employee_phone?: string | null
           id?: string
           item_name?: string
           quantity?: number

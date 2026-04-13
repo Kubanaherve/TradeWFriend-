@@ -4,6 +4,7 @@ import { ArrowLeft, Bell, Check, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDate } from "@/lib/kinyarwanda";
+import { useBusinessSettings } from "@/hooks/useBusinessSettings";
 import {
   buildDebtAlerts,
   notifyIfInactiveForTenHours,
@@ -27,6 +28,7 @@ interface InboxCustomer {
 
 const InboxPage = () => {
   const navigate = useNavigate();
+  const { settings: businessSettings } = useBusinessSettings();
   const [alerts, setAlerts] = useState<DebtAlert[]>([]);
   const [customersById, setCustomersById] = useState<
     Record<string, InboxCustomer>
@@ -75,7 +77,7 @@ const InboxPage = () => {
   }, [fetchAlerts]);
 
   useEffect(() => {
-    notifyIfInactiveForTenHours();
+    notifyIfInactiveForTenHours(businessSettings.businessName);
     recordAppActivity();
 
     const refreshAlerts = () => {
@@ -92,7 +94,7 @@ const InboxPage = () => {
       window.removeEventListener("paymentMade", refreshAlerts);
       window.removeEventListener("focus", refreshAlerts);
     };
-  }, [fetchAlerts]);
+  }, [fetchAlerts, businessSettings.businessName]);
 
   const openCustomerCard = (alert: DebtAlert) => {
     const customer = customersById[alert.customerId];

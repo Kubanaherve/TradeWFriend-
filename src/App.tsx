@@ -4,8 +4,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { AppStoreProvider } from "./store/AppStore";
 import { PinVerificationModal } from "./components/PinVerificationModal";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, type ReactNode } from "react";
 
 // Lazy loading pages for performance
 const AuthPage = lazy(() => import("./pages/Auth"));
@@ -18,7 +19,9 @@ const InstallPage = lazy(() => import("./pages/Install"));
 const ClientsPage = lazy(() => import("./pages/Clients"));
 const InboxPage = lazy(() => import("./pages/Inbox"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
+const EmployeesPage = lazy(() => import("./pages/Employees"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const OwnerRoute = lazy(() => import("./components/OwnerRoute"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,12 +32,8 @@ const queryClient = new QueryClient({
   },
 });
 
-/**
- * FIXED: This now uses 'isLoading' and 'isAuthenticated' 
- * to match your specific AuthContextType.
- */
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, isLoading } = useAuth(); // Changed from session/loading
+const ProtectedRoute = ({ children }: { children: ReactNode }) => {
+  const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -54,7 +53,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const AppRoutes = () => {
   return (
-    <Suspense 
+    <Suspense
       fallback={
         <div className="flex h-screen w-full items-center justify-center bg-background">
           <div className="h-10 w-10 animate-pulse rounded-full bg-primary/20" />
@@ -64,16 +63,92 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/" element={<AuthPage />} />
 
-        {/* Protected Routes */}
-        <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-        <Route path="/add-debt" element={<ProtectedRoute><AddDebtPage /></ProtectedRoute>} />
-        <Route path="/debts" element={<ProtectedRoute><DebtsPage /></ProtectedRoute>} />
-        <Route path="/sales" element={<ProtectedRoute><SalesPage /></ProtectedRoute>} />
-        <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
-        <Route path="/clients" element={<ProtectedRoute><ClientsPage /></ProtectedRoute>} />
-        <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-        
+        {/* All authenticated users */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/add-debt"
+          element={
+            <ProtectedRoute>
+              <AddDebtPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/debts"
+          element={
+            <ProtectedRoute>
+              <DebtsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory"
+          element={
+            <ProtectedRoute>
+              <InventoryPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Owner-only routes */}
+        <Route
+          path="/sales"
+          element={
+            <ProtectedRoute>
+              <OwnerRoute>
+                <SalesPage />
+              </OwnerRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/clients"
+          element={
+            <ProtectedRoute>
+              <OwnerRoute>
+                <ClientsPage />
+              </OwnerRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inbox"
+          element={
+            <ProtectedRoute>
+              <OwnerRoute>
+                <InboxPage />
+              </OwnerRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <OwnerRoute>
+                <SettingsPage />
+              </OwnerRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/employees"
+          element={
+            <ProtectedRoute>
+              <OwnerRoute>
+                <EmployeesPage />
+              </OwnerRoute>
+            </ProtectedRoute>
+          }
+        />
+
         {/* Utils */}
         <Route path="/install" element={<InstallPage />} />
         <Route path="*" element={<NotFound />} />
@@ -88,10 +163,12 @@ const App = () => {
       <TooltipProvider>
         <BrowserRouter>
           <AuthProvider>
-            <Toaster />
-            <Sonner position="top-center" richColors closeButton />
-            <PinVerificationModal />
-            <AppRoutes />
+            <AppStoreProvider>
+              <Toaster />
+              <Sonner position="top-center" richColors closeButton />
+              <PinVerificationModal />
+              <AppRoutes />
+            </AppStoreProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

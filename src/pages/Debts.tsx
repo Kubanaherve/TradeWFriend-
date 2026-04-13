@@ -3,12 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { labels, formatCurrency, formatDate, smsTemplates } from "@/lib/kinyarwanda";
-import {
-  DAILY_CUSTOMER_PAYMENTS_PREFIX,
-  getDateKeyFromIso,
-  incrementAppSettingAmount,
-} from "@/lib/reporting";
+import { useBusinessSettings } from "@/hooks/useBusinessSettings";
+import { useAuth } from "@/contexts/AuthContext";
+import { getDateKeyFromIso } from "@/lib/reporting";
 import { supabase } from "@/integrations/supabase/client";
+import { useAppStore } from "@/store/AppStore";
 import { toast } from "sonner";
 import PaymentModal from "@/components/PaymentModal";
 import jsPDF from "jspdf";
@@ -40,6 +39,9 @@ const PAGE_SIZE = 50;
 
 const DebtsPage = () => {
   const navigate = useNavigate();
+  const { settings: businessSettings } = useBusinessSettings();
+  const { isOwner } = useAuth();
+  const { recordTransaction } = useAppStore();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -188,7 +190,7 @@ const DebtsPage = () => {
           doc.setFont("helvetica", "bold");
           doc.setFontSize(15);
           doc.setTextColor(255, 255, 255);
-          doc.text("TradeWFriend+", pageW / 2, 10, { align: "center" });
+          doc.text(businessSettings.businessName, pageW / 2, 10, { align: "center" });
 
           doc.setFont("helvetica", "normal");
           doc.setFontSize(8.5);
@@ -206,7 +208,7 @@ const DebtsPage = () => {
           doc.setFontSize(8.5);
           doc.setTextColor(255, 255, 255);
           doc.text(
-            "TradeWFriend+ — Raporo y'Ideni (ikurikira)",
+            `${businessSettings.businessName} — Raporo y'Ideni (ikurikira)`,
             pageW / 2, 8, { align: "center" }
           );
         }
@@ -353,7 +355,7 @@ const DebtsPage = () => {
           doc.setFontSize(7);
           doc.setTextColor(170, 170, 170);
           doc.text(
-            `Urupapuro ${pageNum}  |  Abakiriya ${list.length}  |  ${formatCurrency(grandTotal)}  |  TradeWFriend+`,
+            `Urupapuro ${pageNum}  |  Abakiriya ${list.length}  |  ${formatCurrency(grandTotal)}  |  ${businessSettings.businessName}`,
             pageW / 2,
             pageH - 5,
             { align: "center" }
@@ -362,7 +364,7 @@ const DebtsPage = () => {
       });
 
       // ── Save directly as .pdf ──────────────────────────────────────────────
-      const filename = `debts-tradewfriend-${new Date().toISOString().split("T")[0]}.pdf`;
+      const filename = `debts-${businessSettings.businessName.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split("T")[0]}.pdf`;
       doc.save(filename);
 
       toast.success(`PDF y'abakiriya ${list.length} yamanitswe! ✨`);
@@ -407,6 +409,11 @@ const DebtsPage = () => {
   };
 
   const openPayment = (customer: Customer) => {
+    if (!isOwner) {
+      toast.error("Ntubifitiye uburenganzira."
+      );
+      return;
+    }
     if (!customer.phone) {
       toast.warning("Ntushobora kohereza ubutumwa kuri uyu mukiriya mbere yo kwishyura.");
     } else if (!isMobileDevice()) {
@@ -418,6 +425,10 @@ const DebtsPage = () => {
 
   // ── Payment handler ────────────────────────────────────────────────────────
   const handlePayment = async (paymentAmount: number, thankYouMessage: string) => {
+    if (!isOwner) {
+      toast.error("Ntubifitiye uburenganzira.");
+      return;
+    }
     if (!selectedCustomer) return;
 
     // ✅ WhatsApp FIRST — synchronous before any await (avoids popup blocker)
@@ -446,38 +457,32 @@ const DebtsPage = () => {
       const nowIso = new Date().toISOString();
       const todayKey = getDateKeyFromIso(nowIso);
 
-      // 1️⃣ Update customer record
       const { error: updateError } = await supabase
         .from("customers")
         .update(
           newAmount <= 0
-            ? { is_paid: true, paid_at: nowIso, amount: 0 }
+            ? { is_paid: true, paid_at: nowIso, amount: 0, updated_at: nowIso }
             : { amount: newAmount, updated_at: nowIso }
         )
         .eq("id", selectedCustomer.id);
 
       if (updateError) throw updateError;
 
-      // 2️⃣ Update reporting totals (with rollback on failure)
-      try {
-        await incrementAppSettingAmount("total_paid", paymentAmount);
-        await incrementAppSettingAmount(
-          `${DAILY_CUSTOMER_PAYMENTS_PREFIX}${todayKey}`,
-          paymentAmount
-        );
-      } catch (reportingError) {
-        await supabase
-          .from("customers")
-          .update(
-            newAmount <= 0
-              ? { is_paid: false, paid_at: null, amount: originalAmount, updated_at: nowIso }
-              : { amount: originalAmount, updated_at: nowIso }
-          )
-          .eq("id", selectedCustomer.id);
-        throw reportingError;
-      }
+      await recordTransaction({
+        transaction_type: "payment",
+        amount: paymentAmount,
+        date: nowIso,
+        description: `Payment from ${selectedCustomer.name}`,
+        related_id: selectedCustomer.id,
+        created_by: null,
+        metadata: {
+          customer_name: selectedCustomer.name,
+          outstanding_before: originalAmount,
+          outstanding_after: newAmount,
+        },
+      });
 
-      toast.success("Byashyizweho neza! ✨");
+      toast.success("Byishyuwe neza! ✨");
       setPaymentModalOpen(false);
       fetchCustomers(1, searchQuery);
       setPage(1);
@@ -499,6 +504,10 @@ const DebtsPage = () => {
 
   // ── Delete handler ─────────────────────────────────────────────────────────
   const handleDelete = async (customer: Customer) => {
+    if (!isOwner) {
+      toast.error("Ntubifitiye uburenganzira.");
+      return;
+    }
     if (!confirm(`${labels.confirmDelete} ${customer.name}?`)) return;
 
     try {
@@ -559,13 +568,14 @@ const DebtsPage = () => {
 
           <div className="flex items-center gap-2">
             {/* Download PDF button */}
-            <Button
-              onClick={downloadFullList}
-              disabled={isDownloading}
-              size="sm"
-              variant="outline"
-              className="h-8 px-3 text-xs gap-1 border-green-500/50 text-green-700 hover:bg-green-50"
-            >
+            {isOwner && (
+              <Button
+                onClick={downloadFullList}
+                disabled={isDownloading}
+                size="sm"
+                variant="outline"
+                className="h-8 px-3 text-xs gap-1 border-green-500/50 text-green-700 hover:bg-green-50"
+              >
               {isDownloading ? (
                 <div className="w-3 h-3 border-2 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
               ) : (
@@ -573,6 +583,7 @@ const DebtsPage = () => {
               )}
               {isDownloading ? "..." : "PDF"}
             </Button>
+            )}
 
             <Button
               onClick={() => navigate("/add-debt")}
@@ -729,25 +740,29 @@ const DebtsPage = () => {
                 </>
               )}
 
-              {/* Mark as paid */}
-              <button
-                onClick={() => openPayment(selectedCustomer)}
-                className="flex items-center justify-center w-24 h-24 rounded-full bg-blue-700 shadow-xl hover:scale-110 transition-transform"
-                style={{ boxShadow: "0 0 20px #00f6ff, 0 0 40px #00cfff" }}
-                title="Yishyuye"
-              >
-                <Check size={36} className="text-white" />
-              </button>
+              {isOwner && (
+                <>
+                  {/* Mark as paid */}
+                  <button
+                    onClick={() => openPayment(selectedCustomer)}
+                    className="flex items-center justify-center w-24 h-24 rounded-full bg-blue-700 shadow-xl hover:scale-110 transition-transform"
+                    style={{ boxShadow: "0 0 20px #00f6ff, 0 0 40px #00cfff" }}
+                    title="Yishyuye"
+                  >
+                    <Check size={36} className="text-white" />
+                  </button>
 
-              {/* Delete */}
-              <button
-                onClick={() => handleDelete(selectedCustomer)}
-                className="flex items-center justify-center w-20 h-20 rounded-full bg-red-600 shadow-xl hover:scale-110 transition-transform"
-                style={{ boxShadow: "0 0 20px #ff4c4c, 0 0 40px #ff2a2a" }}
-                title="Siba"
-              >
-                <Trash2 size={30} className="text-white" />
-              </button>
+                  {/* Delete */}
+                  <button
+                    onClick={() => handleDelete(selectedCustomer)}
+                    className="flex items-center justify-center w-20 h-20 rounded-full bg-red-600 shadow-xl hover:scale-110 transition-transform"
+                    style={{ boxShadow: "0 0 20px #ff4c4c, 0 0 40px #ff2a2a" }}
+                    title="Siba"
+                  >
+                    <Trash2 size={30} className="text-white" />
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

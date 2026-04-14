@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -7,23 +7,21 @@ import {
   UserPlus,
   Users,
   ShieldCheck,
+  Phone,
+  User,
+  Crown,
 } from "lucide-react";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth, PIN_LENGTH, normalizePhone, isValidRwandaPhone } from "@/contexts/AuthContext";
-type SimpleEmployeeQueryRow = {
-  id: string;
-  display_name: string;
-  phone: string;
-  business_name: string;
-  created_by: string;
-  pin_hash: string;
-  created_at: string;
-  role?: "owner" | "employee";
-  is_active?: boolean;
-  updated_at?: string;
-};
+import {
+  useAuth,
+  PIN_LENGTH,
+  normalizePhone,
+  isValidRwandaPhone,
+} from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/LanguageContext";
+
 type EmployeeRow = {
   id: string;
   display_name: string;
@@ -40,78 +38,135 @@ type EmployeeRow = {
 const S = {
   page: {
     minHeight: "100vh",
-    background: "#f8fafc",
+    background: "#f0f4f8",
     display: "flex",
     flexDirection: "column" as const,
     alignItems: "center",
-    justifyContent: "center",
-    padding: "24px 16px",
-    fontFamily: "'DM Sans', system-ui, sans-serif",
+    justifyContent: "flex-start",
+    padding: "0 16px 24px",
+    fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif",
     position: "relative" as const,
     overflow: "hidden",
   },
   blob1: {
     position: "absolute" as const,
-    top: -120,
-    right: -120,
-    width: 400,
-    height: 400,
+    top: -140,
+    right: -140,
+    width: 420,
+    height: 420,
     borderRadius: "50%",
-    background: "radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)",
     pointerEvents: "none" as const,
+    background: "radial-gradient(circle, rgba(59,130,246,0.14) 0%, transparent 70%)",
   },
   blob2: {
     position: "absolute" as const,
-    bottom: -100,
-    left: -100,
-    width: 350,
-    height: 350,
+    bottom: -120,
+    left: -120,
+    width: 360,
+    height: 360,
     borderRadius: "50%",
-    background: "radial-gradient(circle, rgba(6,182,212,0.10) 0%, transparent 70%)",
     pointerEvents: "none" as const,
+    background: "radial-gradient(circle, rgba(6,182,212,0.11) 0%, transparent 70%)",
   },
-  card: {
-    background: "white",
-    borderRadius: 28,
-    boxShadow:
-      "0 4px 6px rgba(0,0,0,0.04), 0 20px 60px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)",
-    padding: "32px 28px",
+  shell: {
     width: "100%",
-    maxWidth: 460,
-    position: "relative" as const,
+    maxWidth: 980,
     zIndex: 1,
   },
+  header: {
+    position: "sticky" as const,
+    top: 0,
+    zIndex: 20,
+    background: "rgba(255,255,255,0.84)",
+    backdropFilter: "blur(14px)",
+    borderBottom: "1px solid rgba(226,232,240,0.9)",
+    padding: "14px 0",
+    marginBottom: 16,
+  },
+  headerRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  headerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    minWidth: 0,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    border: "none",
+    background: "#e2e8f0",
+    color: "#0f172a",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    flexShrink: 0,
+  } as CSSProperties,
   logoWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     background: "linear-gradient(135deg,#0f172a,#1e3a5f)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    margin: "0 auto 16px",
-    boxShadow: "0 8px 32px rgba(15,23,42,0.25), 0 0 0 1px rgba(59,130,246,0.2)",
+    boxShadow: "0 8px 24px rgba(15,23,42,0.18)",
+    flexShrink: 0,
   },
-  appName: {
-    fontSize: 22,
+  headerTitle: {
+    fontSize: 15,
     fontWeight: 700,
     color: "#0f172a",
-    textAlign: "center" as const,
-    letterSpacing: "-0.5px",
-    marginBottom: 4,
+    lineHeight: 1.2,
   },
-  subtitle: {
-    fontSize: 13,
+  headerSub: {
+    fontSize: 11,
     color: "#64748b",
-    textAlign: "center" as const,
-    marginBottom: 28,
+    marginTop: 2,
+    lineHeight: 1.3,
   },
-  section: {
-    border: "1px solid #e2e8f0",
-    borderRadius: 20,
+  grid: {
+    display: "grid",
+    gap: 14,
+    gridTemplateColumns: "1fr",
+  } as CSSProperties,
+  summaryGrid: {
+    display: "grid",
+    gap: 12,
+    gridTemplateColumns: "repeat(2, 1fr)",
+  } as CSSProperties,
+  card: {
+    background: "rgba(255,255,255,0.94)",
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.75)",
+    boxShadow: "0 8px 26px rgba(15,23,42,0.06)",
     padding: 18,
-    marginTop: 16,
-    background: "#fff",
+  } as CSSProperties,
+  summaryCard: {
+    background: "rgba(255,255,255,0.94)",
+    borderRadius: 20,
+    border: "1px solid rgba(255,255,255,0.75)",
+    boxShadow: "0 8px 20px rgba(15,23,42,0.05)",
+    padding: 16,
+  } as CSSProperties,
+  summaryLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#64748b",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.06em",
+    marginBottom: 8,
+  },
+  summaryValue: {
+    fontSize: 22,
+    fontWeight: 800,
+    color: "#0f172a",
   },
   sectionTitle: {
     fontSize: 14,
@@ -128,21 +183,27 @@ const S = {
     marginBottom: 14,
     lineHeight: 1.5,
   },
+  formGrid: {
+    display: "grid",
+    gap: 12,
+    gridTemplateColumns: "1fr",
+  } as CSSProperties,
   label: {
     fontSize: 12,
     fontWeight: 700,
     color: "#475569",
     marginBottom: 6,
     display: "block",
-    letterSpacing: "0.3px",
+    letterSpacing: "0.02em",
   },
   input: {
     width: "100%",
-    padding: "12px 16px",
+    height: 44,
+    padding: "0 14px",
     borderRadius: 14,
     border: "1.5px solid #e2e8f0",
     background: "#f8fafc",
-    fontSize: 15,
+    fontSize: 14,
     color: "#0f172a",
     outline: "none",
     boxSizing: "border-box" as const,
@@ -151,26 +212,24 @@ const S = {
   },
   btnPrimary: {
     width: "100%",
-    padding: "14px",
-    borderRadius: 16,
+    height: 44,
+    borderRadius: 14,
     border: "none",
     cursor: "pointer",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 700,
     background: "linear-gradient(135deg,#0f172a 0%,#1e40af 100%)",
     color: "white",
-    boxShadow: "0 4px 20px rgba(15,23,42,0.25), 0 0 0 1px rgba(59,130,246,0.15)",
-    letterSpacing: "0.2px",
+    boxShadow: "0 8px 20px rgba(15,23,42,0.18)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    marginTop: 8,
   } as CSSProperties,
   employeeCard: {
     border: "1px solid #e2e8f0",
     borderRadius: 18,
-    padding: "14px 16px",
+    padding: "14px 14px",
     background: "#fff",
     marginTop: 12,
   } as CSSProperties,
@@ -178,33 +237,78 @@ const S = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 16,
+    gap: 12,
   } as CSSProperties,
+  employeeLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    minWidth: 0,
+    flex: 1,
+  } as CSSProperties,
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: "50%",
+    background: "linear-gradient(135deg,#dbeafe,#e0f2fe)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#0f172a",
+    fontWeight: 800,
+    flexShrink: 0,
+  } as CSSProperties,
+  employeeName: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#0f172a",
+    lineHeight: 1.2,
+  },
+  employeePhone: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 4,
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+  },
   status: (active: boolean) =>
     ({
       display: "inline-flex",
       alignItems: "center",
       gap: 6,
-      padding: "4px 10px",
+      padding: "5px 10px",
       borderRadius: 999,
-      fontSize: 12,
-      fontWeight: 700,
+      fontSize: 11,
+      fontWeight: 800,
       background: active ? "#ecfdf5" : "#fef2f2",
       color: active ? "#047857" : "#b91c1c",
       marginTop: 8,
+      textTransform: "uppercase",
+      letterSpacing: "0.04em",
     }) as CSSProperties,
   dangerBtn: {
     border: "none",
     background: "#fee2e2",
     color: "#b91c1c",
     borderRadius: 12,
-    padding: "10px 12px",
+    width: 40,
+    height: 40,
     cursor: "pointer",
-    fontWeight: 700,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   } as CSSProperties,
+  emptyState: {
+    border: "1px dashed #cbd5e1",
+    background: "#f8fafc",
+    borderRadius: 18,
+    padding: "22px 16px",
+    textAlign: "center" as const,
+    color: "#64748b",
+    fontSize: 14,
+  },
 };
 
 function focusStyle(e: React.FocusEvent<HTMLInputElement>) {
@@ -229,6 +333,7 @@ async function hashPin(pin: string, phone: string) {
 const Employees = () => {
   const navigate = useNavigate();
   const auth = useAuth();
+  const { t } = useI18n();
 
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -254,41 +359,41 @@ const Employees = () => {
     }
 
     if (!auth.isLoading && auth.isAuthenticated && !isOwner) {
-      toast.error("Only the owner can access employee management.");
+      toast.error(t("errors.noPermission"));
       navigate("/settings", { replace: true });
     }
-  }, [auth.isAuthenticated, auth.isLoading, isOwner, navigate]);
+  }, [auth.isAuthenticated, auth.isLoading, isOwner, navigate, t]);
 
-  const loadEmployees = async () => {
+  const loadEmployees = useCallback(async () => {
     if (!ownerIdentifier) {
       setEmployees([]);
       setLoading(false);
       return;
     }
 
- setLoading(true);
+    setLoading(true);
 
-const response = await (supabase as any)
-  .from("employees")
-  .select("*")
-  .eq("created_by", ownerIdentifier)
-  .eq("role", "employee")
-  .order("created_at", { ascending: false });
+    const response = await (supabase as any)
+      .from("employees")
+      .select("*")
+      .eq("created_by", ownerIdentifier)
+      .eq("role", "employee")
+      .order("created_at", { ascending: false });
 
-const error = response.error as Error | null;
-const data = (response.data ?? []) as EmployeeRow[];
+    const error = response.error as Error | null;
+    const data = (response.data ?? []) as EmployeeRow[];
 
-if (error) {
-  console.error(error);
-  toast.error("Failed to load employees.");
-  setEmployees([]);
-  setLoading(false);
-  return;
-}
+    if (error) {
+      console.error(error);
+      toast.error(t("employees.fetchFailed"));
+      setEmployees([]);
+      setLoading(false);
+      return;
+    }
 
-setEmployees(data ?? []);
+    setEmployees(data);
     setLoading(false);
-  };
+  }, [ownerIdentifier, t]);
 
   useEffect(() => {
     if (!canUsePage) {
@@ -297,11 +402,11 @@ setEmployees(data ?? []);
     }
 
     void loadEmployees();
-  }, [canUsePage, ownerIdentifier]);
+  }, [canUsePage, loadEmployees]);
 
   const handleAddEmployee = async () => {
     if (!isOwner) {
-      toast.error("Only the owner can add employees.");
+      toast.error(t("errors.noPermission"));
       return;
     }
 
@@ -310,58 +415,57 @@ setEmployees(data ?? []);
     const cleanPin = pin.trim();
 
     if (!cleanName) {
-      toast.error("Enter employee name.");
+      toast.error(t("employees.enterName"));
       return;
     }
 
     if (!isValidRwandaPhone(cleanPhone)) {
-      toast.error("Enter a valid Rwanda phone number.");
+      toast.error(t("auth.invalidPhone"));
       return;
     }
 
     if (!/^\d{6}$/.test(cleanPin) || cleanPin.length !== PIN_LENGTH) {
-      toast.error("PIN must be exactly 6 digits.");
+      toast.error(t("employees.pinSixDigits"));
       return;
     }
 
     if (!ownerIdentifier) {
-      toast.error("Owner account not found.");
+      toast.error(t("employees.ownerNotFound"));
       return;
     }
 
     setSaving(true);
 
     try {
-     const existingResponse = await (supabase as any)
-  .from("employees")
-  .select("id")
-  .eq("phone", cleanPhone)
-  .maybeSingle();
-
-const checkError = existingResponse.error as Error | null;
-const existingByPhone = existingResponse.data as { id: string } | null;
+      const { data: existingByPhone, error: checkError } = await (supabase as any)
+        .from("employees")
+        .select("id")
+        .eq("phone", cleanPhone)
+        .maybeSingle();
 
       if (checkError) throw checkError;
 
       if (existingByPhone) {
-        toast.error("That phone number already has an account.");
+        toast.error(t("employees.phoneAlreadyExists"));
         setSaving(false);
         return;
       }
 
       const pinHash = await hashPin(cleanPin, cleanPhone);
-const insertResponse = await (supabase as any).from("employees").insert({
-  display_name: cleanName,
-  phone: cleanPhone,
-  pin_hash: pinHash,
-  business_name: businessName || "My Business",
-  created_by: ownerIdentifier,
-  role: "employee",
-  is_active: true,
-});
 
-if (insertResponse.error) throw insertResponse.error;
-      toast.success("Employee account created successfully.");
+      const { error } = await (supabase as any).from("employees").insert({
+        display_name: cleanName,
+        phone: cleanPhone,
+        pin_hash: pinHash,
+        business_name: businessName || "My Business",
+        created_by: ownerIdentifier,
+        role: "employee",
+        is_active: true,
+      });
+
+      if (error) throw error;
+
+      toast.success(t("employees.employeeCreated"));
       setDisplayName("");
       setPhone("");
       setPin("");
@@ -369,7 +473,7 @@ if (insertResponse.error) throw insertResponse.error;
       await loadEmployees();
     } catch (error) {
       console.error(error);
-      toast.error("Failed to create employee account.");
+      toast.error(t("employees.createFailed"));
     } finally {
       setSaving(false);
     }
@@ -377,36 +481,50 @@ if (insertResponse.error) throw insertResponse.error;
 
   const handleDeactivateEmployee = async (employeeId: string, employeeName: string) => {
     if (!isOwner) {
-      toast.error("Only the owner can remove employees.");
+      toast.error(t("errors.noPermission"));
       return;
     }
 
     const confirmed = window.confirm(
-      `Disable ${employeeName}'s account? They will no longer be able to log in.`
+      `${t("employees.confirmDisable")} ${employeeName}?`
     );
     if (!confirmed) return;
 
-   const updateResponse = await (supabase as any)
-  .from("employees")
-  .update({
-    is_active: false,
-    updated_at: new Date().toISOString(),
-  })
-  .eq("id", employeeId)
-  .eq("created_by", ownerIdentifier);
+    const { error } = await (supabase as any)
+      .from("employees")
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", employeeId)
+      .eq("created_by", ownerIdentifier);
 
-if (updateResponse.error) {
-  console.error(updateResponse.error);
-  toast.error("Failed to disable employee.");
-  return;
-}
+    if (error) {
+      console.error(error);
+      toast.error(t("employees.disableFailed"));
+      return;
+    }
 
-    toast.success("Employee account disabled.");
+    toast.success(t("employees.employeeDisabled"));
     await loadEmployees();
   };
 
+  const activeCount = employees.filter((e) => e.is_active !== false).length;
+
   if (auth.isLoading || loading) {
-    return <div style={{ padding: 24 }}>Loading employees...</div>;
+    return (
+      <div style={S.page}>
+        <div style={S.blob1} />
+        <div style={S.blob2} />
+        <div style={{ ...S.shell, paddingTop: 32 }}>
+          <div style={S.card}>
+            <div style={{ textAlign: "center", color: "#64748b", fontSize: 14 }}>
+              {t("common.loading")}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!canUsePage) {
@@ -418,144 +536,171 @@ if (updateResponse.error) {
       <div style={S.blob1} />
       <div style={S.blob2} />
 
-      <button
-        type="button"
-        onClick={() => navigate("/settings")}
-        style={{
-          position: "absolute",
-          top: 20,
-          left: 20,
-          width: 44,
-          height: 44,
-          borderRadius: 12,
-          background: "rgba(255,255,255,0.9)",
-          border: "none",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-          zIndex: 10,
-        }}
-      >
-        <ArrowLeft size={20} />
-      </button>
+      <div style={S.shell}>
+        <div style={S.header}>
+          <div style={S.headerRow}>
+            <div style={S.headerLeft}>
+              <button
+                type="button"
+                onClick={() => navigate("/settings")}
+                style={S.backBtn}
+              >
+                <ArrowLeft size={20} />
+              </button>
 
-      <div style={S.card}>
-        <div style={S.logoWrap}>
-          <img
-            src={logo}
-            alt="TradeWFriend+"
-            style={{ width: 42, height: 42, objectFit: "contain" }}
-          />
+              <div style={S.logoWrap}>
+                <img
+                  src={logo}
+                  alt="TradeWFriend+"
+                  style={{ width: 24, height: 24, objectFit: "contain" }}
+                />
+              </div>
+
+              <div style={{ minWidth: 0 }}>
+                <div style={S.headerTitle}>{t("employees.title")}</div>
+                <div style={S.headerSub}>{t("employees.subtitle")}</div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div style={S.appName}>Employees</div>
-        <div style={S.subtitle}>
-          Create and control employee accounts under the owner only
-        </div>
-
-        <div style={S.section}>
-          <div style={S.sectionTitle}>
-            <UserPlus size={16} color="#2563eb" />
-            Add Employee
-          </div>
-          <div style={S.sectionText}>
-            Employees are created only by the owner from settings and stay under this business.
+        <div style={S.grid}>
+          <div style={S.summaryGrid}>
+            <div style={S.summaryCard}>
+              <div style={S.summaryLabel}>{t("employees.totalEmployees")}</div>
+              <div style={S.summaryValue}>{employees.length}</div>
+            </div>
+            <div style={S.summaryCard}>
+              <div style={S.summaryLabel}>{t("employees.activeEmployees")}</div>
+              <div style={{ ...S.summaryValue, color: "#047857" }}>{activeCount}</div>
+            </div>
           </div>
 
-          <label style={S.label}>Employee Name</label>
-          <input
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Enter employee name"
-            style={S.input}
-            onFocus={focusStyle}
-            onBlur={blurStyle}
-          />
+          <div style={S.card}>
+            <div style={S.sectionTitle}>
+              <UserPlus size={16} color="#2563eb" />
+              {t("employees.addEmployee")}
+            </div>
+            <div style={S.sectionText}>
+              {t("employees.addEmployeeHelp")}
+            </div>
 
-          <div style={{ height: 12 }} />
+            <div style={S.formGrid}>
+              <div>
+                <label style={S.label}>{t("employees.employeeName")}</label>
+                <input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder={t("employees.employeeNamePlaceholder")}
+                  style={S.input}
+                  onFocus={focusStyle}
+                  onBlur={blurStyle}
+                />
+              </div>
 
-          <label style={S.label}>Phone Number</label>
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="07xxxxxxxx"
-            style={S.input}
-            onFocus={focusStyle}
-            onBlur={blurStyle}
-          />
+              <div>
+                <label style={S.label}>{t("auth.phoneNumber")}</label>
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder={t("auth.phonePlaceholder")}
+                  style={S.input}
+                  onFocus={focusStyle}
+                  onBlur={blurStyle}
+                />
+              </div>
 
-          <div style={{ height: 12 }} />
+              <div>
+                <label style={S.label}>{t("auth.setPin")}</label>
+                <input
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder={t("employees.pinPlaceholder")}
+                  style={S.input}
+                  onFocus={focusStyle}
+                  onBlur={blurStyle}
+                />
+              </div>
+            </div>
 
-          <label style={S.label}>6-Digit PIN</label>
-          <input
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="******"
-            style={S.input}
-            onFocus={focusStyle}
-            onBlur={blurStyle}
-          />
-
-          <button
-            type="button"
-            style={S.btnPrimary}
-            onClick={handleAddEmployee}
-            disabled={saving}
-          >
-            <Plus size={18} />
-            {saving ? "Creating..." : "Add Employee"}
-          </button>
-        </div>
-
-        <div style={S.section}>
-          <div style={S.sectionTitle}>
-            <Users size={16} color="#0f172a" />
-            Employee List
+            <div style={{ marginTop: 14 }}>
+              <button
+                type="button"
+                style={S.btnPrimary}
+                onClick={handleAddEmployee}
+                disabled={saving}
+              >
+                <Plus size={18} />
+                {saving ? t("common.saving") : t("employees.addEmployee")}
+              </button>
+            </div>
           </div>
-          <div style={S.sectionText}>
-            Only employees created under this owner appear here.
-          </div>
 
-          {employees.length === 0 ? (
-            <div style={{ color: "#64748b", fontSize: 14 }}>No employees added yet.</div>
-          ) : (
-            employees.map((employee) => {
-              const active = employee.is_active !== false;
+          <div style={S.card}>
+            <div style={S.sectionTitle}>
+              <Users size={16} color="#0f172a" />
+              {t("employees.employeeList")}
+            </div>
+            <div style={S.sectionText}>
+              {t("employees.employeeListHelp")}
+            </div>
 
-              return (
-                <div key={employee.id} style={S.employeeCard}>
-                  <div style={S.employeeRow}>
-                    <div>
-                      <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                        {employee.display_name}
+            {employees.length === 0 ? (
+              <div style={S.emptyState}>{t("employees.noEmployees")}</div>
+            ) : (
+              employees.map((employee) => {
+                const active = employee.is_active !== false;
+                const initial = employee.display_name?.charAt(0)?.toUpperCase() || "E";
+
+                return (
+                  <div key={employee.id} style={S.employeeCard}>
+                    <div style={S.employeeRow}>
+                      <div style={S.employeeLeft}>
+                        <div style={S.avatar}>{initial}</div>
+
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <div style={S.employeeName}>{employee.display_name}</div>
+                            <Crown size={14} color="#2563eb" />
+                          </div>
+
+                          <div style={S.employeePhone}>
+                            <Phone size={12} />
+                            <span>{employee.phone}</span>
+                          </div>
+
+                          <div style={S.status(active)}>
+                            <ShieldCheck size={13} />
+                            {active ? t("employees.active") : t("employees.disabled")}
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
-                        {employee.phone}
-                      </div>
-                      <div style={S.status(active)}>
-                        <ShieldCheck size={13} />
-                        {active ? "Active" : "Disabled"}
-                      </div>
+
+                      {active && (
+                        <button
+                          type="button"
+                          style={S.dangerBtn}
+                          onClick={() =>
+                            void handleDeactivateEmployee(employee.id, employee.display_name)
+                          }
+                          title={t("common.delete")}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
-
-                    {active && (
-                      <button
-                        type="button"
-                        style={S.dangerBtn}
-                        onClick={() =>
-                          void handleDeactivateEmployee(employee.id, employee.display_name)
-                        }
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
                   </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -1,10 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Bell, Check, MessageCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  Bell,
+  Check,
+  MessageCircle,
+  Phone,
+  User,
+  Calendar,
+  AlertTriangle,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDate } from "@/lib/kinyarwanda";
 import { useBusinessSettings } from "@/hooks/useBusinessSettings";
+import { useI18n } from "@/contexts/LanguageContext";
 import {
   buildDebtAlerts,
   notifyIfInactiveForTenHours,
@@ -24,38 +35,39 @@ interface InboxCustomer {
   due_date: string | null;
   items?: string | null;
   is_paid: boolean;
+  image_url?: string | null;
 }
+
+type ParsedItem = {
+  name: string;
+  qty: number;
+  price: number;
+};
 
 const InboxPage = () => {
   const navigate = useNavigate();
   const { settings: businessSettings } = useBusinessSettings();
+  const { t } = useI18n();
+
   const [alerts, setAlerts] = useState<DebtAlert[]>([]);
-  const [customersById, setCustomersById] = useState<
-    Record<string, InboxCustomer>
-  >({});
-  const [selectedCustomer, setSelectedCustomer] =
-    useState<InboxCustomer | null>(null);
+  const [customersById, setCustomersById] = useState<Record<string, InboxCustomer>>({});
+  const [selectedCustomer, setSelectedCustomer] = useState<InboxCustomer | null>(null);
   const [loading, setLoading] = useState(false);
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("customers")
-        .select("id, name, phone, amount, created_at, due_date, items, is_paid");
+        .select("id, name, phone, amount, created_at, due_date, items, is_paid, image_url");
 
       if (error) throw error;
 
       const customerRows = (data || []) as InboxCustomer[];
+      const builtAlerts = buildDebtAlerts(customerRows as DebtAlertCustomer[]);
 
-      const builtAlerts = buildDebtAlerts(
-        customerRows as DebtAlertCustomer[]
-      );
-
-      const customerMap = customerRows.reduce<
-        Record<string, InboxCustomer>
-      >((acc, customer) => {
+      const customerMap = customerRows.reduce<Record<string, InboxCustomer>>((acc, customer) => {
         acc[customer.id] = customer;
         return acc;
       }, {});
@@ -66,14 +78,14 @@ const InboxPage = () => {
       await notifyDebtAlerts(builtAlerts);
     } catch (error) {
       console.error("Inbox alerts error:", error);
-      toast.error("Habaye ikosa mu gufata inbox");
+      toast.error(t("inbox.fetchFailed"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
-    fetchAlerts();
+    void fetchAlerts();
   }, [fetchAlerts]);
 
   useEffect(() => {
@@ -82,16 +94,18 @@ const InboxPage = () => {
 
     const refreshAlerts = () => {
       recordAppActivity();
-      fetchAlerts();
+      void fetchAlerts();
     };
 
     window.addEventListener("newDebtAdded", refreshAlerts);
     window.addEventListener("paymentMade", refreshAlerts);
+    window.addEventListener("debtDeleted", refreshAlerts);
     window.addEventListener("focus", refreshAlerts);
 
     return () => {
       window.removeEventListener("newDebtAdded", refreshAlerts);
       window.removeEventListener("paymentMade", refreshAlerts);
+      window.removeEventListener("debtDeleted", refreshAlerts);
       window.removeEventListener("focus", refreshAlerts);
     };
   }, [fetchAlerts, businessSettings.businessName]);
@@ -100,134 +114,206 @@ const InboxPage = () => {
     const customer = customersById[alert.customerId];
 
     if (!customer) {
-      toast.error("Uyu mukiriya ntiyabonetse neza.");
+      toast.error(t("inbox.customerNotFound"));
       return;
     }
 
     setSelectedCustomer(customer);
   };
 
-  // ✅ CLEAN WHATSAPP LOGIC
+  const parseItems = (raw: string | null | undefined): ParsedItem[] => {
+    if (!raw) return [];
+
+    try {
+      const parsed = JSON.parse(raw);
+
+      if (!Array.isArray(parsed)) return [];
+
+      return parsed
+        .map((item: any) => {
+          if (typeof item === "object" && item !== null) {
+            return {
+              name: String(item.name ?? item.item_name ?? ""),
+              qty: Number(item.qty ?? item.quantity ?? 1),
+              price: Number(item.price ?? item.unit_price ?? 0),
+            };
+          }
+
+          if (typeof item === "string") {
+            return {
+              name: item,
+              qty: 1,
+              price: 0,
+            };
+          }
+
+          return null;
+        })
+        .filter(Boolean) as ParsedItem[];
+    } catch {
+      return [];
+    }
+  };
+
+  const parsedSelectedItems = useMemo(
+    () => parseItems(selectedCustomer?.items),
+    [selectedCustomer]
+  );
+
   const sendWhatsAppToCustomer = (customer: InboxCustomer) => {
     if (!customer.phone) {
-      toast.error("Nimero ya telephone ntiboneka");
+      toast.error(t("inbox.phoneMissing"));
       return;
     }
 
-    let parsedItems: { name: string; qty: number; price: number }[] = [];
-
-    try {
-      parsedItems = customer.items ? JSON.parse(customer.items) : [];
-    } catch {
-      parsedItems = [];
-    }
+    const parsedItems = parseItems(customer.items);
 
     const formattedItems = parsedItems.length
       ? parsedItems
-          .map(
-            (item) =>
-              `- ${item.name} (${item.qty} x ${item.price} FRW = ${
-                item.qty * item.price
-              } FRW)`
+          .map((item) =>
+            item.price > 0
+              ? `- ${item.name} (${item.qty} x ${formatCurrency(item.price)} = ${formatCurrency(
+                  item.qty * item.price
+                )})`
+              : `- ${item.name} (${item.qty})`
           )
           .join("\n")
-      : "Amabijoux";
+      : t("inbox.noItems");
 
-    const message = `Muraho neza, mwampaye kuri cash nshuti.
-
-${formattedItems}
-
-Totale: ${formatCurrency(
-      customer.amount || 0
-    )}`;
+    const message = [
+      `${t("addDebt.debtNotificationGreeting")} ${customer.name || t("common.name")},`,
+      "",
+      `${t("inbox.messageIntro")} ${businessSettings.businessName}.`,
+      "",
+      `${t("common.details")}:`,
+      formattedItems,
+      "",
+      `${t("inbox.totalAmount")}: ${formatCurrency(customer.amount || 0)}`,
+      customer.due_date ? `${t("debts.dueDate")}: ${formatDate(customer.due_date)}` : "",
+      "",
+      t("addDebt.debtNotificationThanks"),
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const encoded = encodeURIComponent(message);
 
-    const phone = customer.phone.startsWith("0")
-      ? "250" + customer.phone.slice(1)
-      : customer.phone;
+    let phone = customer.phone.replace(/\s+/g, "");
+    if (phone.startsWith("0")) {
+      phone = "250" + phone.slice(1);
+    } else if (phone.startsWith("+")) {
+      phone = phone.slice(1);
+    }
 
     window.open(`https://wa.me/${phone}?text=${encoded}`, "_blank");
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted to-background">
-      <header className="sticky top-0 z-50 glass-card rounded-none border-x-0 border-t-0 py-3 px-4 flex items-center gap-3">
-        <button
-          onClick={() => navigate("/dashboard")}
-          className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center"
-        >
-          <ArrowLeft size={18} />
-        </button>
+  const urgentCount = alerts.filter((alert) => alert.amount >= 10000).length;
 
-        <div>
-          <h1 className="text-base font-bold">Inbox y'Ubutumwa</h1>
-          <p className="text-[10px] text-muted-foreground">
-            Aha ni ho ubona amakuru y'amadeni ashaje n'amadeni manini.
-          </p>
+  return (
+    <div
+      className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 text-slate-900"
+      style={{ fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}
+    >
+      <div className="pointer-events-none absolute -left-20 top-10 h-72 w-72 rounded-full bg-gradient-to-br from-indigo-300/35 to-transparent blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-32 h-80 w-80 rounded-full bg-gradient-to-br from-cyan-300/25 to-transparent blur-3xl" />
+
+      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/85 px-4 py-3 shadow-sm backdrop-blur-xl">
+        <div className="mx-auto flex max-w-5xl items-center gap-3">
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition-all hover:bg-slate-200 active:scale-95"
+          >
+            <ArrowLeft size={20} />
+          </button>
+
+          <div className="min-w-0">
+            <h1 className="truncate text-[15px] font-bold text-slate-900">
+              {t("inbox.title")}
+            </h1>
+            <p className="text-[11px] text-slate-500">{t("inbox.subtitle")}</p>
+          </div>
         </div>
       </header>
 
-      <main className="p-4 max-w-lg mx-auto space-y-4 animate-fade-in">
-        <div className="glass-card-dark p-4 gold-glow">
-          <div className="flex items-center gap-2 mb-1">
-            <Bell size={16} className="text-secondary" />
-            <span className="text-xs text-primary-foreground/70">
-              Ubutumwa bw'ingenzi
-            </span>
+      <main className="mx-auto max-w-5xl space-y-4 px-4 py-4 pb-10">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="rounded-2xl border border-white/70 bg-white/90 p-4 shadow-sm">
+            <div className="mb-2 flex items-center gap-2 text-slate-500">
+              <Bell size={16} />
+              <span className="text-[11px] font-semibold uppercase tracking-wide">
+                {t("inbox.importantMessages")}
+              </span>
+            </div>
+            <p className="text-xl font-bold text-slate-900">{alerts.length}</p>
           </div>
-          <p className="text-2xl font-bold text-white">{alerts.length}</p>
+
+          <div className="rounded-2xl border border-red-100 bg-white/90 p-4 shadow-sm">
+            <div className="mb-2 flex items-center gap-2 text-slate-500">
+              <AlertTriangle size={16} />
+              <span className="text-[11px] font-semibold uppercase tracking-wide">
+                {t("inbox.urgentAlerts")}
+              </span>
+            </div>
+            <p className="text-xl font-bold text-red-600">{urgentCount}</p>
+          </div>
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-muted-foreground text-sm">
-            Gutegereza...
+          <div className="rounded-2xl border border-white/70 bg-white/90 p-10 text-center shadow-sm">
+            <p className="text-sm text-slate-500">{t("common.loading")}</p>
           </div>
         ) : alerts.length === 0 ? (
-          <div className="glass-card p-6 text-center">
-            <p className="text-sm font-medium">Nta butumwa bushya buhari.</p>
+          <div className="rounded-2xl border border-white/70 bg-white/90 p-8 text-center shadow-sm">
+            <Bell size={30} className="mx-auto mb-3 text-slate-300" />
+            <p className="text-sm font-medium text-slate-700">{t("inbox.noMessages")}</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {alerts.map((alert) => (
-              <div key={alert.id} className="glass-card p-4 space-y-3">
-                <div className="flex justify-between">
-                  <div>
-                    <h2 className="text-sm font-bold">{alert.title}</h2>
-                    <p className="text-xs text-muted-foreground mt-1">
+              <div
+                key={alert.id}
+                className="rounded-2xl border border-white/70 bg-white/95 p-4 shadow-sm"
+              >
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-[15px] font-bold text-slate-900">{alert.title}</h2>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500">
                       {alert.message}
                     </p>
                   </div>
 
                   <div className="text-right">
-                    <p className="text-sm font-bold text-destructive">
+                    <p className="text-sm font-bold text-red-600">
                       {formatCurrency(alert.amount)}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="mt-1 text-[10px] text-slate-400">
                       {formatDate(alert.createdAt)}
                     </p>
                   </div>
                 </div>
 
-                <div className="text-[11px] text-muted-foreground">
-                  <p>Umukiriya: {alert.customerName}</p>
-                  {alert.phone && <p>Telefono: {alert.phone}</p>}
+                <div className="space-y-1 text-[11px] text-slate-500">
+                  <p>
+                    {t("inbox.customer")}: <span className="font-semibold text-slate-700">{alert.customerName}</span>
+                  </p>
+                  {alert.phone && <p>{t("auth.phoneNumber")}: {alert.phone}</p>}
                 </div>
 
-                <div className="flex gap-2">
+                <div className="mt-4 grid grid-cols-2 gap-2">
                   <Button
                     size="sm"
-                    className="flex-1 btn-navy"
+                    className="h-10 rounded-xl text-xs font-semibold"
                     onClick={() => openCustomerCard(alert)}
                   >
                     <Check size={14} className="mr-1" />
-                    Reba card
+                    {t("inbox.viewCard")}
                   </Button>
 
                   <Button
                     size="sm"
                     variant="outline"
-                    className="flex-1"
+                    className="h-10 rounded-xl text-xs font-semibold"
                     onClick={() => {
                       const customer = customersById[alert.customerId];
                       if (customer) {
@@ -246,35 +332,106 @@ Totale: ${formatCurrency(
       </main>
 
       {selectedCustomer && (
-        <div className="fixed inset-0 bg-black/90 flex justify-center items-end sm:items-center p-4 z-50">
-          <div className="bg-white/100 rounded-2xl w-full sm:max-w-md p-6 space-y-6 shadow-xl">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold truncate">
-                {selectedCustomer.name}
-              </h2>
-              <button onClick={() => setSelectedCustomer(null)}>✕</button>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-4 sm:items-center">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-t-3xl bg-white p-5 shadow-xl sm:rounded-3xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                {selectedCustomer.image_url ? (
+                  <img
+                    src={selectedCustomer.image_url}
+                    alt={selectedCustomer.name || "Customer"}
+                    className="h-16 w-16 rounded-full border object-cover"
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+                    <User size={22} className="text-slate-400" />
+                  </div>
+                )}
+
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">
+                    {selectedCustomer.name}
+                  </h2>
+                  {selectedCustomer.phone && (
+                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                      <Phone size={12} />
+                      {selectedCustomer.phone}
+                    </p>
+                  )}
+                  {selectedCustomer.due_date && (
+                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                      <Calendar size={12} />
+                      {t("debts.dueDate")}: {formatDate(selectedCustomer.due_date)}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedCustomer(null)}
+                className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100"
+              >
+                <X size={20} />
+              </button>
             </div>
 
-            <div className="text-center space-y-2">
-              {selectedCustomer.items && (
-                <p className="text-sm">
-                  Ibyo yafashe: {selectedCustomer.items}
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-medium text-slate-500">{t("inbox.totalAmount")}</p>
+                <p className="mt-1 text-lg font-bold text-red-600">
+                  {formatCurrency(selectedCustomer.amount || 0)}
                 </p>
-              )}
-              <p className="text-xl font-semibold">
-                {formatCurrency(selectedCustomer.amount || 0)}
-              </p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-medium text-slate-500">{t("common.status")}</p>
+                <p className="mt-1 text-lg font-bold text-slate-900">
+                  {selectedCustomer.is_paid ? t("addDebt.paid") : t("addDebt.debt")}
+                </p>
+              </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <h3 className="mb-3 text-sm font-bold text-slate-700">{t("debts.debtItems")}</h3>
+
+              {parsedSelectedItems.length === 0 ? (
+                <p className="text-sm text-slate-500">{t("inbox.noItems")}</p>
+              ) : (
+                <div className="space-y-2">
+                  {parsedSelectedItems.map((item, index) => (
+                    <div
+                      key={`${item.name}-${index}`}
+                      className="flex items-start justify-between rounded-xl bg-white p-3"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {item.name}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {t("inventory.quantity")}: {item.qty}
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-slate-900">
+                          {item.price > 0
+                            ? formatCurrency(item.qty * item.price)
+                            : "-"}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4">
               {selectedCustomer.phone && (
                 <Button
-                  className="w-full"
-                  onClick={() =>
-                    sendWhatsAppToCustomer(selectedCustomer)
-                  }
+                  className="h-11 w-full rounded-xl text-sm font-semibold"
+                  onClick={() => sendWhatsAppToCustomer(selectedCustomer)}
                 >
-                  <MessageCircle size={14} className="mr-1" />
+                  <MessageCircle size={14} className="mr-2" />
                   WhatsApp
                 </Button>
               )}

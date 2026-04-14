@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AppStoreProvider } from "./store/AppStore";
 import { PinVerificationModal } from "./components/PinVerificationModal";
 import { Suspense, lazy, type ReactNode } from "react";
+import { LanguageProvider } from "./contexts/LanguageContext";
 
 // Lazy loading pages for performance
 const AuthPage = lazy(() => import("./pages/Auth"));
@@ -63,7 +64,6 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/" element={<AuthPage />} />
 
-        {/* All authenticated users */}
         <Route
           path="/dashboard"
           element={
@@ -97,7 +97,6 @@ const AppRoutes = () => {
           }
         />
 
-        {/* Owner-only routes */}
         <Route
           path="/sales"
           element={
@@ -149,7 +148,6 @@ const AppRoutes = () => {
           }
         />
 
-        {/* Utils */}
         <Route path="/install" element={<InstallPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
@@ -161,16 +159,18 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <BrowserRouter>
-          <AuthProvider>
-            <AppStoreProvider>
-              <Toaster />
-              <Sonner position="top-center" richColors closeButton />
-              <PinVerificationModal />
-              <AppRoutes />
-            </AppStoreProvider>
-          </AuthProvider>
-        </BrowserRouter>
+        <LanguageProvider>
+          <BrowserRouter>
+            <AuthProvider>
+              <AppStoreProvider>
+                <Toaster />
+                <Sonner position="top-center" richColors closeButton />
+                <PinVerificationModal />
+                <AppRoutes />
+              </AppStoreProvider>
+            </AuthProvider>
+          </BrowserRouter>
+        </LanguageProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

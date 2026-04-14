@@ -9,6 +9,8 @@ import {
   Gem,
   Plus,
   X,
+  LogIn,
+  Smartphone,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import {
@@ -17,9 +19,11 @@ import {
   normalizePhone,
   isValidRwandaPhone,
 } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/LanguageContext";
 
 type Screen =
   | "checking"
+  | "welcome"
   | "accounts"
   | "login_phone"
   | "pin_entry"
@@ -86,7 +90,7 @@ function NumPad({
                 else onPress(key);
               }}
               style={{
-                height: 64,
+                height: 62,
                 borderRadius: 18,
                 border: "none",
                 background: isDelete ? "transparent" : "white",
@@ -147,8 +151,8 @@ const S = {
     background: "white",
     borderRadius: 28,
     width: "100%",
-    maxWidth: 390,
-    padding: "32px 28px",
+    maxWidth: 400,
+    padding: "30px 24px",
     position: "relative" as const,
     zIndex: 1,
     boxShadow:
@@ -177,7 +181,7 @@ const S = {
     fontSize: 13,
     color: "#64748b",
     textAlign: "center" as const,
-    marginBottom: 28,
+    marginBottom: 24,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -266,6 +270,7 @@ function inputBlur(e: React.FocusEvent<HTMLInputElement>) {
 const AuthPage = () => {
   const navigate = useNavigate();
   const auth = useAuth();
+  const { t } = useI18n();
 
   const [screen, setScreen] = useState<Screen>("checking");
   const [accounts, setAccounts] = useState<ReturnType<typeof auth.getAllAccounts>>([]);
@@ -293,6 +298,7 @@ const AuthPage = () => {
 
   const resetPins = () => {
     setPin("");
+    
     setConfirmPin("");
     setPinError("");
   };
@@ -305,7 +311,7 @@ const AuthPage = () => {
 
   useEffect(() => {
     if (!auth.isLoading && auth.isAuthenticated) {
-      navigate("/dashboard", { replace: true });
+     navigate("/dashboard", { replace: true });
     }
   }, [auth.isAuthenticated, auth.isLoading, navigate]);
 
@@ -313,117 +319,102 @@ const AuthPage = () => {
     if (auth.isLoading) return;
 
     const list = refreshAccounts();
-
-    if (list.length === 0) {
-      setScreen("register");
-      return;
-    }
-
-    setScreen("accounts");
+    setScreen(list.length === 0 ? "welcome" : "accounts");
   }, [auth.isLoading, refreshAccounts]);
 
-  useEffect(() => {
-    if (screen === "pin_entry" && pin.length === PIN_LENGTH && !isLoading) {
-      void handlePinLogin();
-    }
-  }, [pin, screen, isLoading]);
+  const handlePinLoginWithValue = useCallback(
+    async (pinValue: string) => {
+      if (!selectedPhone) return;
 
-  useEffect(() => {
-    if (screen === "pin_setup_enter" && pin.length === PIN_LENGTH) {
-      const t = window.setTimeout(() => setScreen("pin_setup_confirm"), 140);
-      return () => window.clearTimeout(t);
-    }
-  }, [pin, screen]);
+      setIsLoading(true);
+      setPinError("");
 
-  useEffect(() => {
-    if (screen === "pin_setup_confirm" && confirmPin.length === PIN_LENGTH && !isLoading) {
-      void handleOwnerConfirm();
-    }
-  }, [confirmPin, screen, isLoading]);
+      const result = await auth.signInWithPhonePin(selectedPhone, pinValue);
 
-  const handlePinLogin = useCallback(async () => {
-    if (!selectedPhone) return;
+      setIsLoading(false);
 
-    setIsLoading(true);
-    setPinError("");
+      if (result === "success") {
+        toast.success(`${t("dashboard.welcome")}, ${selectedDisplayName || "User"}!`);
+        setPin("");
+        navigate("/dashboard", { replace: true });
+        return;
+      }
 
-    const result = await auth.signInWithPhonePin(selectedPhone, pin);
+      if (result === "inactive") {
+        triggerPinError(t("auth.accountDisabled"));
+        setPin("");
+        return;
+      }
 
-    setIsLoading(false);
+      if (result === "not_found") {
+        triggerPinError(t("auth.accountNotFound"));
+        setPin("");
+        return;
+      }
 
-    if (result === "success") {
-      toast.success(`Murakaza neza, ${selectedDisplayName || "umukoresha"}!`);
+      triggerPinError(t("auth.wrongPin"));
+      setPin("");
+    },
+    [auth, navigate, selectedPhone, selectedDisplayName, t, triggerPinError]
+  );
+
+  const handleOwnerConfirmWithValue = useCallback(
+    async (confirmValue: string) => {
+      if (pin !== confirmValue) {
+        setConfirmPin("");
+        triggerPinError(t("changePin.pinMismatch"));
+        return;
+      }
+
+      setIsLoading(true);
+
+      const result = await auth.signUpOwner({
+        displayName: displayName.trim(),
+        phone,
+        pin,
+        businessName: businessName.trim(),
+      });
+
+      setIsLoading(false);
+
+      if (!result.ok) {
+        toast.error("error" in result ? result.error : t("errors.saveFailed"));
+        return;
+      }
+
+      toast.success(t("auth.ownerCreated"));
       navigate("/dashboard", { replace: true });
-      return;
-    }
-
-    if (result === "inactive") {
-      triggerPinError("Iyi konti yahagaritswe.");
-      setPin("");
-      return;
-    }
-
-    if (result === "not_found") {
-      triggerPinError("Konti ntiboneka.");
-      setPin("");
-      return;
-    }
-
-    triggerPinError("PIN siyo.");
-    setPin("");
-  }, [auth, navigate, pin, selectedDisplayName, selectedPhone, triggerPinError]);
+    },
+    [auth, businessName, displayName, navigate, phone, pin, t, triggerPinError]
+  );
 
   const handleRegister = () => {
     if (!displayName.trim()) {
-      toast.error("Andika izina.");
+      toast.error(t("errors.requiredField"));
       return;
     }
 
     if (!businessName.trim()) {
-      toast.error("Andika izina ry'ubucuruzi.");
+      toast.error(t("errors.requiredField"));
       return;
     }
 
     const normalized = normalizePhone(phone);
     if (!isValidRwandaPhone(normalized)) {
-      toast.error("Andika nimero y'u Rwanda neza.");
+      toast.error(t("auth.invalidPhone"));
       return;
     }
 
     setPhone(normalized);
+    setPin("");
+    setConfirmPin("");
     setScreen("pin_setup_enter");
   };
-
-  const handleOwnerConfirm = useCallback(async () => {
-    if (pin !== confirmPin) {
-      setConfirmPin("");
-      triggerPinError("PIN ntizihuye.");
-      return;
-    }
-
-    setIsLoading(true);
-
-    const result = await auth.signUpOwner({
-      displayName: displayName.trim(),
-      phone,
-      pin,
-      businessName: businessName.trim(),
-    });
-
-    setIsLoading(false);
-
-   if (!result.ok) {
-      toast.error("error" in result ? result.error : "Konti ya owner ntiyakozwe.");
-      return;
-    }
-    toast.success("Owner account yakozwe neza.");
-    navigate("/dashboard", { replace: true });
-  }, [auth, businessName, confirmPin, displayName, navigate, phone, pin, triggerPinError]);
 
   const handlePhoneContinue = () => {
     const normalized = normalizePhone(loginPhone);
     if (!isValidRwandaPhone(normalized)) {
-      toast.error("Andika nimero y'u Rwanda neza.");
+      toast.error(t("auth.invalidPhone"));
       return;
     }
 
@@ -441,31 +432,38 @@ const AuthPage = () => {
   const removeRememberedAccount = (phoneToRemove: string, e: React.MouseEvent) => {
     e.stopPropagation();
     auth.removeAccount(phoneToRemove);
-    refreshAccounts();
+    const updated = refreshAccounts();
+    if (updated.length === 0) setScreen("welcome");
   };
 
   const title = useMemo(() => {
-    if (screen === "register") return "Fungura owner account";
-    if (screen === "login_phone") return "Injira";
-    if (screen === "pin_entry") return "Injiza PIN";
-    if (screen === "pin_setup_enter") return "Shyiraho PIN";
-    if (screen === "pin_setup_confirm") return "Emeza PIN";
-    return "TradeWFriend+";
-  }, [screen]);
+    if (screen === "welcome") return t("common.appName");
+    if (screen === "register") return t("auth.createOwnerAccount");
+    if (screen === "login_phone") return t("auth.login");
+    if (screen === "pin_entry") return t("auth.enterPin");
+    if (screen === "pin_setup_enter") return t("auth.setPin");
+    if (screen === "pin_setup_confirm") return t("auth.confirmPin");
+    return t("common.appName");
+  }, [screen, t]);
 
   const subtitle = useMemo(() => {
-    if (screen === "register") return "Nimero y'u Rwanda + PIN";
-    if (screen === "login_phone") return "Andika nimero ya telefone";
-    if (screen === "pin_entry") return selectedPhone || "PIN";
-    if (screen === "pin_setup_enter") return "PIN y'imibare 6";
-    if (screen === "pin_setup_confirm") return "Ongera uyandike";
-    return "Smart business manager";
-  }, [screen, selectedPhone]);
+    if (screen === "welcome") return t("auth.subtitle");
+    if (screen === "register") return t("auth.subtitle");
+    if (screen === "login_phone") return t("auth.phoneNumber");
+    if (screen === "pin_entry") return selectedPhone || t("auth.pin");
+    if (screen === "pin_setup_enter") return t("auth.sixDigitPin");
+    if (screen === "pin_setup_confirm") return t("auth.confirmSixDigitPin");
+    return t("auth.subtitle");
+  }, [screen, selectedPhone, t]);
 
   const Header = () => (
     <>
       <div style={S.logoWrap}>
-        <img src={logo} alt="TradeWFriend+" style={{ width: 42, height: 42, objectFit: "contain" }} />
+        <img
+          src={logo}
+          alt={t("common.appName")}
+          style={{ width: 42, height: 42, objectFit: "contain" }}
+        />
       </div>
       <div style={S.appName}>{title}</div>
       <div style={S.subtitle}>
@@ -482,7 +480,29 @@ const AuthPage = () => {
         <div style={S.blob2} />
         <div style={S.card}>
           <Header />
-          <div style={{ textAlign: "center", color: "#64748b" }}>Birimo gutegurwa...</div>
+          <div style={{ textAlign: "center", color: "#64748b" }}>{t("auth.checking")}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === "welcome") {
+    return (
+      <div style={S.page}>
+        <div style={S.blob1} />
+        <div style={S.blob2} />
+        <div style={S.card}>
+          <Header />
+
+          <button type="button" style={S.btn("primary")} onClick={() => setScreen("login_phone")}>
+            <LogIn size={18} />
+            {t("auth.login")}
+          </button>
+
+          <button type="button" style={S.btn("outline")} onClick={() => setScreen("register")}>
+            <Smartphone size={18} />
+            {t("auth.createOwnerAccount")}
+          </button>
         </div>
       </div>
     );
@@ -558,11 +578,11 @@ const AuthPage = () => {
 
           <button type="button" style={S.btn("outline")} onClick={() => setScreen("login_phone")}>
             <Plus size={18} />
-            Injiza indi konti
+            {t("auth.addAnotherAccount")}
           </button>
 
           <button type="button" style={S.btn("ghost")} onClick={() => setScreen("register")}>
-            Fungura owner account nshya
+            {t("auth.createNewOwner")}
           </button>
         </div>
       </div>
@@ -577,23 +597,23 @@ const AuthPage = () => {
         <div style={S.card}>
           <Header />
 
-          <label style={S.label}>Numero ya telefone</label>
+          <label style={S.label}>{t("auth.phoneNumber")}</label>
           <input
             value={loginPhone}
             onChange={(e) => setLoginPhone(e.target.value)}
-            placeholder="07xxxxxxxx"
+            placeholder={t("auth.phonePlaceholder")}
             style={S.input}
             onFocus={inputFocus}
             onBlur={inputBlur}
           />
 
           <button type="button" style={S.btn("primary")} onClick={handlePhoneContinue}>
-            Injira
+            {t("auth.login")}
           </button>
 
           <button
             type="button"
-            onClick={() => setScreen(accounts.length ? "accounts" : "register")}
+            onClick={() => setScreen(accounts.length ? "accounts" : "welcome")}
             style={{
               background: "none",
               border: "none",
@@ -604,7 +624,7 @@ const AuthPage = () => {
               margin: "18px auto 0",
             }}
           >
-            ← Subira inyuma
+            ← {t("common.back")}
           </button>
         </div>
       </div>
@@ -619,11 +639,11 @@ const AuthPage = () => {
         <div style={S.card}>
           <Header />
 
-          <label style={S.label}>Izina rya owner</label>
+          <label style={S.label}>{t("auth.ownerName")}</label>
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Urugero: Friend"
+            placeholder={t("auth.ownerNamePlaceholder")}
             style={S.input}
             onFocus={inputFocus}
             onBlur={inputBlur}
@@ -631,11 +651,11 @@ const AuthPage = () => {
 
           <div style={{ height: 12 }} />
 
-          <label style={S.label}>Numero ya telefone</label>
+          <label style={S.label}>{t("auth.phoneNumber")}</label>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            placeholder="07xxxxxxxx"
+            placeholder={t("auth.phonePlaceholder")}
             style={S.input}
             onFocus={inputFocus}
             onBlur={inputBlur}
@@ -643,11 +663,11 @@ const AuthPage = () => {
 
           <div style={{ height: 12 }} />
 
-          <label style={S.label}>Izina ry'ubucuruzi</label>
+          <label style={S.label}>{t("auth.businessName")}</label>
           <input
             value={businessName}
             onChange={(e) => setBusinessName(e.target.value)}
-            placeholder="Urugero: TradeWFriend Shop"
+            placeholder={t("auth.businessNamePlaceholder")}
             style={S.input}
             onFocus={inputFocus}
             onBlur={inputBlur}
@@ -655,26 +675,24 @@ const AuthPage = () => {
 
           <button type="button" style={S.btn("primary")} onClick={handleRegister}>
             <Building2 size={18} />
-            Komeza
+            {t("common.continue")}
           </button>
 
-          {accounts.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setScreen("accounts")}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#94a3b8",
-                fontSize: 13,
-                display: "block",
-                margin: "18px auto 0",
-              }}
-            >
-              ← Subira inyuma
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setScreen(accounts.length ? "accounts" : "welcome")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "#94a3b8",
+              fontSize: 13,
+              display: "block",
+              margin: "18px auto 0",
+            }}
+          >
+            ← {t("common.back")}
+          </button>
         </div>
       </div>
     );
@@ -701,15 +719,32 @@ const AuthPage = () => {
             pin={activePin}
             disabled={isLoading}
             onPress={(digit) => {
-              if (activePin.length >= PIN_LENGTH) return;
-              setActivePin((prev) => prev + digit);
+              if (activePin.length >= PIN_LENGTH || isLoading) return;
+
+              const nextPin = activePin + digit;
+              setActivePin(nextPin);
+
+              if (screen === "pin_setup_enter" && nextPin.length === PIN_LENGTH) {
+                window.setTimeout(() => {
+                  setScreen("pin_setup_confirm");
+                }, 120);
+              }
+
+              if (screen === "pin_setup_confirm" && nextPin.length === PIN_LENGTH) {
+                window.setTimeout(() => {
+                  void handleOwnerConfirmWithValue(nextPin);
+                }, 120);
+              }
             }}
-            onDelete={() => setActivePin((prev) => prev.slice(0, -1))}
+            onDelete={() => {
+              if (isLoading) return;
+              setActivePin((prev) => prev.slice(0, -1));
+            }}
           />
 
           {isLoading && (
             <div style={{ textAlign: "center", marginTop: 14, color: "#64748b", fontSize: 13 }}>
-              Birimo gukora...
+              {t("common.loading")}
             </div>
           )}
 
@@ -729,7 +764,7 @@ const AuthPage = () => {
               margin: "18px auto 0",
             }}
           >
-            ← Subira inyuma
+            ← {t("common.back")}
           </button>
         </div>
       </div>
@@ -774,15 +809,26 @@ const AuthPage = () => {
           pin={pin}
           disabled={isLoading}
           onPress={(digit) => {
-            if (pin.length >= PIN_LENGTH) return;
-            setPin((prev) => prev + digit);
+            if (pin.length >= PIN_LENGTH || isLoading) return;
+
+            const nextPin = pin + digit;
+            setPin(nextPin);
+
+            if (nextPin.length === PIN_LENGTH) {
+              window.setTimeout(() => {
+                void handlePinLoginWithValue(nextPin);
+              }, 120);
+            }
           }}
-          onDelete={() => setPin((prev) => prev.slice(0, -1))}
+          onDelete={() => {
+            if (isLoading) return;
+            setPin((prev) => prev.slice(0, -1));
+          }}
         />
 
         {isLoading && (
           <div style={{ textAlign: "center", marginTop: 14, color: "#64748b", fontSize: 13 }}>
-            Birimo kugenzurwa...
+            {t("auth.checking")}
           </div>
         )}
 
@@ -790,7 +836,7 @@ const AuthPage = () => {
           type="button"
           onClick={() => {
             resetPins();
-            setScreen(accounts.length ? "accounts" : "login_phone");
+            setScreen(accounts.length ? "accounts" : "welcome");
           }}
           style={{
             background: "none",
@@ -803,7 +849,7 @@ const AuthPage = () => {
           }}
         >
           <ArrowLeft size={14} style={{ verticalAlign: "middle", marginRight: 6 }} />
-          Subira inyuma
+          {t("common.back")}
         </button>
       </div>
     </div>

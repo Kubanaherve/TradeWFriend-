@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getDateKeyFromIso } from "@/lib/reporting";
-import { loadLocalAccounts } from "@/lib/localAuth";
 
 export type TransactionType =
   | "sale"
@@ -20,7 +19,7 @@ export interface Transaction {
   metadata?: Record<string, unknown> | null;
 }
 
-const STORAGE_KEY = "tradewfriend_transactions";
+const STORAGE_KEY = "tradewfriend_transactions_v2";
 
 const normalizeAmount = (value: unknown) => Number(value ?? 0) || 0;
 
@@ -46,166 +45,136 @@ export const clearLocalTransactions = () => {
   localStorage.removeItem(STORAGE_KEY);
 };
 
+/**
+ * No real `transactions` table exists in the current schema.
+ * So this returns an empty list and lets the app use real tables + local fallback.
+ */
 export const fetchTransactionsFromDb = async (): Promise<Transaction[]> => {
-  const { data, error } = await supabase
-    .from("transactions")
-    .select(
-      "id, transaction_type, amount, date, description, related_id, created_by, metadata"
-    )
-    .order("date", { ascending: true });
-
-  if (error) {
-    throw error;
-  }
-
-  return (data || []).map((row) => ({
-    id: row.id,
-    transaction_type: row.transaction_type as TransactionType,
-    amount: normalizeAmount(row.amount),
-    date: row.date,
-    description: row.description,
-    related_id: row.related_id,
-    created_by: row.created_by,
-    metadata: row.metadata,
-  }));
+  return [];
 };
 
+/**
+ * No real `transactions` table exists in the current schema.
+ * Save only to local storage fallback.
+ */
 export const persistTransactionToDb = async (
-  transaction: Omit<Transaction, "id">,
+  transaction: Omit<Transaction, "id">
 ): Promise<Transaction> => {
-  const insertPayload = {
-    transaction_type: transaction.transaction_type,
-    amount: transaction.amount,
-    date: transaction.date,
-    description: transaction.description,
-    related_id: transaction.related_id,
-    created_by: transaction.created_by,
-    metadata: transaction.metadata,
+  const saved: Transaction = {
+    id: `local:${crypto.randomUUID()}`,
+    ...transaction,
   };
 
-  const { data, error } = await supabase
-    .from("transactions")
-    .insert(insertPayload)
-    .select("id, transaction_type, amount, date, description, related_id, created_by, metadata")
-    .single();
+  const existing = loadLocalTransactions();
+  saveLocalTransactions([...existing, saved]);
 
-  if (error) {
-    throw error;
-  }
-
-  return {
-    id: data.id,
-    transaction_type: data.transaction_type as TransactionType,
-    amount: normalizeAmount(data.amount),
-    date: data.date,
-    description: data.description,
-    related_id: data.related_id,
-    created_by: data.created_by,
-    metadata: data.metadata,
-  };
+  return saved;
 };
 
 export const buildTransactionsFromExistingData = async (): Promise<Transaction[]> => {
-  const [salesResult, customersResult] = await Promise.all([
-    supabase
+  const [salesResult, debtItemsResult, debtPaymentsResult] = await Promise.all([
+    (supabase as any)
       .from("sales")
-      .select("id, sale_price, quantity, item_name, created_at, employee_phone")
+      .select("id, sale_price, quantity, item_name, created_at")
       .order("created_at", { ascending: true }),
-    supabase
-      .from("customers")
-      .select("id, amount, created_at, is_paid, paid_at, name")
-      .order("created_at", { ascending: true }),
+
+    (supabase as any)
+      .from("debt_items")
+      .select("id, customer_id, item_name, quantity, unit_price, total_price, date_taken")
+      .order("date_taken", { ascending: true }),
+
+    (supabase as any)
+      .from("debt_payments")
+      .select("id, customer_id, amount_paid, paid_at, note")
+      .order("paid_at", { ascending: true }),
   ]);
 
   if (salesResult.error) throw salesResult.error;
-  if (customersResult.error) throw customersResult.error;
+  if (debtItemsResult.error) throw debtItemsResult.error;
+  if (debtPaymentsResult.error) throw debtPaymentsResult.error;
 
   const transactions: Transaction[] = [];
 
-  (salesResult.data || []).forEach((sale) => {
+  ((salesResult.data ?? []) as Array<{
+    id: string;
+    sale_price: number;
+    quantity: number;
+    item_name?: string | null;
+    created_at: string;
+  }>).forEach((sale) => {
     const amount = normalizeAmount(sale.sale_price) * Number(sale.quantity ?? 1);
+
     transactions.push({
       id: `sale:${sale.id}`,
       transaction_type: "sale",
       amount,
       date: sale.created_at,
-      description: `Sale: ${sale.item_name}`,
+      description: sale.item_name ? `Sale: ${sale.item_name}` : "Sale recorded",
       related_id: sale.id,
-      created_by: sale.employee_phone ?? null,
+      created_by: null,
       metadata: {
-        item_name: sale.item_name,
-        quantity: sale.quantity,
+        item_name: sale.item_name ?? null,
+        quantity: Number(sale.quantity ?? 1),
+        unit_price: normalizeAmount(sale.sale_price),
       },
     });
   });
 
-  (customersResult.data || []).forEach((customer) => {
-    const amount = normalizeAmount(customer.amount);
-    if (customer.is_paid) {
-      transactions.push({
-        id: `payment:${customer.id}`,
-        transaction_type: "payment",
-        amount,
-        date: customer.paid_at || customer.created_at,
-        description: `Payment from ${customer.name}`,
-        related_id: customer.id,
-        created_by: null,
-        metadata: { customer_name: customer.name },
-      });
-    } else {
-      transactions.push({
-        id: `debt:${customer.id}`,
-        transaction_type: "debt",
-        amount,
-        date: customer.created_at,
-        description: `Credit for ${customer.name}`,
-        related_id: customer.id,
-        created_by: null,
-        metadata: { customer_name: customer.name },
-      });
-    }
+  ((debtItemsResult.data ?? []) as Array<{
+    id: string;
+    customer_id: string;
+    item_name?: string | null;
+    quantity: number;
+    unit_price?: number | null;
+    total_price: number;
+    date_taken: string;
+  }>).forEach((item) => {
+    transactions.push({
+      id: `debt:${item.id}`,
+      transaction_type: "debt",
+      amount: normalizeAmount(item.total_price),
+      date: item.date_taken,
+      description: item.item_name ? `Debt: ${item.item_name}` : "Debt recorded",
+      related_id: item.customer_id,
+      created_by: null,
+      metadata: {
+        item_name: item.item_name ?? null,
+        quantity: Number(item.quantity ?? 1),
+        unit_price: normalizeAmount(item.unit_price),
+      },
+    });
   });
 
-  if (transactions.length === 0) {
-    return [];
-  }
+  ((debtPaymentsResult.data ?? []) as Array<{
+    id: string;
+    customer_id: string;
+    amount_paid: number;
+    paid_at: string;
+    note?: string | null;
+  }>).forEach((payment) => {
+    transactions.push({
+      id: `payment:${payment.id}`,
+      transaction_type: "payment",
+      amount: normalizeAmount(payment.amount_paid),
+      date: payment.paid_at,
+      description: payment.note?.trim() || "Debt payment recorded",
+      related_id: payment.customer_id,
+      created_by: null,
+      metadata: {
+        note: payment.note ?? null,
+      },
+    });
+  });
 
-  // Persist initial transactions for new systems if the table exists.
-  try {
-    const { error } = await supabase.from("transactions").insert(
-      transactions.map((transaction) => ({
-        transaction_type: transaction.transaction_type,
-        amount: transaction.amount,
-        date: transaction.date,
-        description: transaction.description,
-        related_id: transaction.related_id,
-        created_by: transaction.created_by,
-        metadata: transaction.metadata,
-      }))
-    );
-
-    if (error) {
-      console.warn("Unable to persist bootstrap transactions:", error.message);
-    }
-  } catch (e) {
-    console.warn("Bootstrap transaction persist failed", e);
-  }
+  transactions.sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
 
   saveLocalTransactions(transactions);
   return transactions;
 };
 
 export const loadOrCreateTransactions = async (): Promise<Transaction[]> => {
-  try {
-    const dbTransactions = await fetchTransactionsFromDb();
-    if (dbTransactions.length > 0) {
-      saveLocalTransactions(dbTransactions);
-      return dbTransactions;
-    }
-  } catch (error) {
-    console.warn("Transactions table unavailable, falling back to local storage.", error);
-  }
-
   const localTransactions = loadLocalTransactions();
   if (localTransactions.length > 0) return localTransactions;
 
@@ -216,40 +185,23 @@ export const loadOrCreateTransactions = async (): Promise<Transaction[]> => {
 };
 
 export const addTransaction = async (
-  transaction: Omit<Transaction, "id">,
+  transaction: Omit<Transaction, "id">
 ): Promise<Transaction> => {
-  try {
-    const saved = await persistTransactionToDb(transaction);
-    const local = loadLocalTransactions();
-    saveLocalTransactions([...local, saved]);
-    return saved;
-  } catch (error) {
-    const saved = {
-      id: `local:${crypto.randomUUID()}`,
-      ...transaction,
-    };
-    const localTransactions = loadLocalTransactions();
-    saveLocalTransactions([...localTransactions, saved]);
-    return saved;
-  }
+  return persistTransactionToDb(transaction);
 };
 
 export const clearTransactions = async (): Promise<void> => {
-  try {
-    await supabase.from("transactions").delete();
-  } catch (error) {
-    console.warn("Unable to clear transactions table", error);
-  }
   clearLocalTransactions();
 };
 
 export const getTransactionSummary = (transactions: Transaction[]) => {
   const todayKey = getDateKeyFromIso(new Date().toISOString());
+
   const totalSales = transactions
     .filter((tx) => tx.transaction_type === "sale")
     .reduce((sum, tx) => sum + tx.amount, 0);
 
-  const totalDebt = transactions
+  const totalDebtIssued = transactions
     .filter((tx) => tx.transaction_type === "debt")
     .reduce((sum, tx) => sum + tx.amount, 0);
 
@@ -257,17 +209,23 @@ export const getTransactionSummary = (transactions: Transaction[]) => {
     .filter((tx) => tx.transaction_type === "payment")
     .reduce((sum, tx) => sum + tx.amount, 0);
 
+  const totalDebt = Math.max(totalDebtIssued - totalPayments, 0);
+
   const todayRevenue = transactions
-    .filter((tx) =>
-      tx.date && getDateKeyFromIso(tx.date) === todayKey &&
-      (tx.transaction_type === "sale" || tx.transaction_type === "payment")
+    .filter(
+      (tx) =>
+        tx.date &&
+        getDateKeyFromIso(tx.date) === todayKey &&
+        (tx.transaction_type === "sale" || tx.transaction_type === "payment")
     )
     .reduce((sum, tx) => sum + tx.amount, 0);
 
   const todayDebt = transactions
-    .filter((tx) =>
-      tx.transaction_type === "debt" &&
-      tx.date && getDateKeyFromIso(tx.date) === todayKey
+    .filter(
+      (tx) =>
+        tx.transaction_type === "debt" &&
+        tx.date &&
+        getDateKeyFromIso(tx.date) === todayKey
     )
     .reduce((sum, tx) => sum + tx.amount, 0);
 

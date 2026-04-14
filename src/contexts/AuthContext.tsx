@@ -62,7 +62,6 @@ type AuthContextType = {
 
   verifyPin: (pin: string) => Promise<"success" | "wrong">;
 
-  // compatibility helpers
   loginWithPin: (phone: string, pin: string) => Promise<LoginResult>;
   loginLocal: () => void;
   saveAccount: () => void;
@@ -78,8 +77,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const PIN_LENGTH = 6;
 
-const CURRENT_SESSION_KEY = "tw_current_session_v4";
-const REMEMBERED_ACCOUNTS_KEY = "tw_remembered_accounts_v4";
+const ACTIVE_SESSION_KEY = "tw_active_session_v5";
+const REMEMBERED_ACCOUNTS_KEY = "tw_remembered_accounts_v5";
 
 export const normalizePhone = (value: string) => {
   const digits = value.replace(/\D/g, "");
@@ -136,6 +135,28 @@ function upsertRememberedAccount(account: RememberedAccount) {
   saveRememberedAccounts(next);
 }
 
+function readActiveSession(): { phone: string } | null {
+  try {
+    const raw = sessionStorage.getItem(ACTIVE_SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as { phone: string };
+  } catch {
+    sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+    return null;
+  }
+}
+
+function saveActiveSession(phone: string) {
+  sessionStorage.setItem(
+    ACTIVE_SESSION_KEY,
+    JSON.stringify({ phone: normalizePhone(phone) })
+  );
+}
+
+function clearActiveSession() {
+  sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+}
+
 function mapEmployeeRowToProfile(row: any): AuthProfile {
   return {
     id: row.id,
@@ -169,17 +190,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const boot = async () => {
       try {
-        const raw = localStorage.getItem(CURRENT_SESSION_KEY);
-        if (!raw) {
+        const savedSession = readActiveSession();
+
+        if (!savedSession?.phone) {
+          setProfile(null);
           setIsLoading(false);
           return;
         }
 
-        const saved = JSON.parse(raw) as { phone: string };
-        const latest = await getAccountByPhone(saved.phone);
+        const latest = await getAccountByPhone(savedSession.phone);
 
         if (!latest || !latest.isActive) {
-          localStorage.removeItem(CURRENT_SESSION_KEY);
+          clearActiveSession();
           setProfile(null);
           setIsLoading(false);
           return;
@@ -187,7 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setProfile(latest);
       } catch {
-        localStorage.removeItem(CURRENT_SESSION_KEY);
+        clearActiveSession();
         setProfile(null);
       } finally {
         setIsLoading(false);
@@ -198,11 +220,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (!profile?.phone) return;
+    const activePhone = profile?.phone;
+    if (!activePhone) return;
 
-    const latest = await getAccountByPhone(profile.phone);
+    const latest = await getAccountByPhone(activePhone);
+
     if (!latest || !latest.isActive) {
-      localStorage.removeItem(CURRENT_SESSION_KEY);
+      clearActiveSession();
       setProfile(null);
       return;
     }
@@ -267,10 +291,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const nextProfile = mapEmployeeRowToProfile(data);
 
-      localStorage.setItem(
-        CURRENT_SESSION_KEY,
-        JSON.stringify({ phone: nextProfile.phone })
-      );
+      saveActiveSession(nextProfile.phone);
 
       upsertRememberedAccount({
         phone: nextProfile.phone,
@@ -313,10 +334,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return "wrong";
       }
 
-      localStorage.setItem(
-        CURRENT_SESSION_KEY,
-        JSON.stringify({ phone: account.phone })
-      );
+      saveActiveSession(account.phone);
 
       upsertRememberedAccount({
         phone: account.phone,
@@ -342,22 +360,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    localStorage.removeItem(CURRENT_SESSION_KEY);
+    clearActiveSession();
     setProfile(null);
   }, []);
 
-  const removeAccount = useCallback((phone: string) => {
-    const normalized = normalizePhone(phone);
-    const next = readRememberedAccounts().filter(
-      (item) => normalizePhone(item.phone) !== normalized
-    );
-    saveRememberedAccounts(next);
+  const removeAccount = useCallback(
+    (phone: string) => {
+      const normalized = normalizePhone(phone);
 
-    if (profile && normalizePhone(profile.phone) === normalized) {
-      localStorage.removeItem(CURRENT_SESSION_KEY);
-      setProfile(null);
-    }
-  }, [profile]);
+      const next = readRememberedAccounts().filter(
+        (item) => normalizePhone(item.phone) !== normalized
+      );
+      saveRememberedAccounts(next);
+
+      if (profile && normalizePhone(profile.phone) === normalized) {
+        clearActiveSession();
+        setProfile(null);
+      }
+    },
+    [profile]
+  );
 
   const getAllAccounts = useCallback(() => {
     return readRememberedAccounts();

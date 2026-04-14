@@ -1,127 +1,238 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, UserPlus, Phone, User, Trash2 } from "lucide-react";
+import { ArrowLeft, UserPlus, Phone, User, Trash2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, normalizePhone } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/LanguageContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { labels } from "@/lib/kinyarwanda";
 
 interface Client {
   id: string;
   name: string;
   phone: string | null;
   created_at: string;
+  due_date: string | null;
+  image_url?: string | null;
 }
 
 const ClientsPage = () => {
   const navigate = useNavigate();
-  const { isOwner } = useAuth();
+  const { isOwner, profile } = useAuth();
+  const { t } = useI18n();
+
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [search, setSearch] = useState("");
+
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
-  const fetchClients = async () => {
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id, name, phone, created_at")
-      .order("created_at", { ascending: false });
+  const actorIdentifier = profile?.phone ?? "";
 
-    if (!error && data) {
-      // Get unique clients by name (latest entry)
+  const fetchClients = async () => {
+    setIsLoading(true);
+
+    try {
+      const response = await (supabase as any)
+        .from("customers")
+        .select("id, name, phone, created_at, due_date, image_url")
+        .order("created_at", { ascending: false });
+
+      if (response.error) throw response.error;
+
+      const data = (response.data ?? []) as Client[];
+
       const uniqueClients = data.reduce((acc, client) => {
-        const existing = acc.find(c => c.name.toLowerCase() === client.name.toLowerCase());
+        const existing = acc.find(
+          (c) =>
+            c.name.trim().toLowerCase() === client.name.trim().toLowerCase() ||
+            (!!c.phone && !!client.phone && c.phone === client.phone)
+        );
+
         if (!existing) {
           acc.push(client);
         }
+
         return acc;
       }, [] as Client[]);
+
       setClients(uniqueClients);
+    } catch (error) {
+      console.error("Fetch clients error:", error);
+      toast.error(t("clients.fetchFailed"));
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   useEffect(() => {
-    fetchClients();
+    void fetchClients();
   }, []);
 
+  const filteredClients = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return clients;
+
+    return clients.filter(
+      (client) =>
+        client.name.toLowerCase().includes(query) ||
+        (client.phone || "").toLowerCase().includes(query)
+    );
+  }, [clients, search]);
+
   const handleSave = async () => {
-    if (!name.trim()) {
-      toast.error("Andika izina ry'umukiriya");
+    const cleanName = name.trim();
+    const cleanPhone = phone.trim() ? normalizePhone(phone) : null;
+
+    if (!cleanName) {
+      toast.error(t("clients.customerName"));
       return;
     }
 
     setIsSaving(true);
+
     try {
-      // Check if client already exists
-      const existingClient = clients.find(
-        c => c.name.toLowerCase() === name.trim().toLowerCase()
-      );
+      const existingResponseByPhone = cleanPhone
+        ? await (supabase as any)
+            .from("customers")
+            .select("id, name, phone")
+            .eq("phone", cleanPhone)
+            .maybeSingle()
+        : null;
+
+      if (existingResponseByPhone?.error) throw existingResponseByPhone.error;
+
+      const existingByPhone = existingResponseByPhone?.data as
+        | { id: string; name: string; phone: string | null }
+        | null;
+
+      const existingResponseByName = await (supabase as any)
+        .from("customers")
+        .select("id, name, phone")
+        .eq("name", cleanName)
+        .maybeSingle();
+
+      if (existingResponseByName.error) throw existingResponseByName.error;
+
+      const existingByName = existingResponseByName.data as
+        | { id: string; name: string; phone: string | null }
+        | null;
+
+      const existingClient = existingByPhone ?? existingByName;
 
       if (existingClient) {
-        // Update existing client's phone if provided
-        if (phone.trim()) {
-          await supabase
-            .from("customers")
-            .update({ phone: phone.trim() })
-            .eq("name", existingClient.name);
+        const updatePayload: Record<string, string | null> = {};
+
+        if (cleanPhone && cleanPhone !== existingClient.phone) {
+          updatePayload.phone = cleanPhone;
         }
-        toast.success("Umukiriya yahinduwe neza ✨");
+
+        if (Object.keys(updatePayload).length > 0) {
+          const updateResponse = await (supabase as any)
+            .from("customers")
+            .update(updatePayload)
+            .eq("id", existingClient.id);
+
+          if (updateResponse.error) throw updateResponse.error;
+        }
+
+        toast.success(t("clients.customerUpdated"));
       } else {
-        // Add as a contact-only entry (no debt)
-        await supabase.from("customers").insert({
-          name: name.trim(),
-          phone: phone.trim() || null,
-          items: "",
-          amount: 0,
-          is_paid: true, // Mark as paid so it doesn't show in debt list
-        });
-        toast.success("Umukiriya yongeweho neza ✨");
+        const nowIso = new Date().toISOString();
+
+        const insertResponse = await (supabase as any)
+          .from("customers")
+          .insert({
+            name: cleanName,
+            phone: cleanPhone,
+            items: "[]",
+            amount: 0,
+            is_paid: true,
+            due_date: null,
+            created_at: nowIso,
+            updated_at: nowIso,
+            added_by: actorIdentifier || null,
+          });
+
+        if (insertResponse.error) throw insertResponse.error;
+
+        toast.success(t("clients.customerSaved"));
       }
 
       setName("");
       setPhone("");
-      fetchClients();
+      await fetchClients();
     } catch (error) {
-      console.error("Save error:", error);
-      toast.error("Habaye ikosa");
+      console.error("Save client error:", error);
+      toast.error(t("clients.saveFailed"));
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDelete = async (clientName: string) => {
+  const handleDelete = async (client: Client) => {
+    const confirmed = window.confirm(
+      `${t("clients.confirmDeleteCustomer")} ${client.name}?`
+    );
+    if (!confirmed) return;
+
     try {
-      // Only delete contact-only entries (items="" and amount=0)
-      await supabase
+      const debtItemsResponse = await (supabase as any)
+        .from("debt_items")
+        .select("id")
+        .eq("customer_id", client.id)
+        .limit(1);
+
+      if (debtItemsResponse.error) throw debtItemsResponse.error;
+
+      const paymentsResponse = await (supabase as any)
+        .from("debt_payments")
+        .select("id")
+        .eq("customer_id", client.id)
+        .limit(1);
+
+      if (paymentsResponse.error) throw paymentsResponse.error;
+
+      const hasDebtHistory =
+        (debtItemsResponse.data ?? []).length > 0 ||
+        (paymentsResponse.data ?? []).length > 0;
+
+      if (hasDebtHistory) {
+        const forceDelete = window.confirm(t("clients.forceDeleteWithHistory"));
+        if (!forceDelete) return;
+      }
+
+      const deleteResponse = await (supabase as any)
         .from("customers")
         .delete()
-        .eq("name", clientName)
-        .eq("items", "")
-        .eq("amount", 0);
-      
-      toast.success("Umukiriya yasibwe");
-      fetchClients();
+        .eq("id", client.id);
+
+      if (deleteResponse.error) throw deleteResponse.error;
+
+      toast.success(t("clients.customerDeleted"));
+
+      window.dispatchEvent(new CustomEvent("clientDeleted"));
+      window.dispatchEvent(new CustomEvent("debtDeleted"));
+
+      await fetchClients();
     } catch (error) {
-      console.error("Delete error:", error);
-      toast.error("Habaye ikosa");
+      console.error("Delete client error:", error);
+      toast.error(t("clients.deleteFailed"));
     }
   };
 
   if (!isOwner) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-muted to-background flex items-center justify-center p-6">
-        <div className="bg-white rounded-3xl p-8 shadow-xl max-w-md text-center">
-          <h1 className="text-xl font-bold mb-3">Uburenganzira buke</h1>
-          <p className="text-sm text-slate-600 mb-6">
-            Abakozi (umukozi) ntabwo bemerewe gucunga abakiriya.
-          </p>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-muted to-background p-6">
+        <div className="max-w-md rounded-3xl bg-white p-8 text-center shadow-xl">
+          <h1 className="mb-3 text-xl font-bold">{t("settings.accessRestricted")}</h1>
+          <p className="mb-6 text-sm text-slate-600">{t("clients.noPermission")}</p>
           <Button onClick={() => navigate("/dashboard")} className="w-full">
-            Garuka kuri Dashboard
+            {t("clients.backToDashboard")}
           </Button>
         </div>
       </div>
@@ -130,60 +241,56 @@ const ClientsPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted to-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 glass-card rounded-none border-x-0 border-t-0 py-3 px-4">
+      <header className="glass-card sticky top-0 z-50 rounded-none border-x-0 border-t-0 px-4 py-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate("/dashboard")}
-            className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted"
           >
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 className="text-base font-bold text-foreground">Abakiriya (Clients)</h1>
-            <p className="text-[10px] text-muted-foreground">
-              Andika no kubika amakuru y'abakiriya
-            </p>
+            <h1 className="text-base font-bold text-foreground">{t("clients.title")}</h1>
+            <p className="text-[10px] text-muted-foreground">{t("clients.subtitle")}</p>
           </div>
         </div>
       </header>
 
-      <main className="p-4 pb-8 space-y-6 max-w-lg mx-auto animate-fade-in">
-        {/* Add Client Form */}
+      <main className="mx-auto max-w-lg space-y-6 p-4 pb-8 animate-fade-in">
         <div className="glass-card p-5 animate-fade-in">
-          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
             <UserPlus size={18} className="text-primary" />
-            Ongeraho Umukiriya
+            {t("clients.addCustomer")}
           </h2>
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="name" className="text-sm font-medium mb-1.5 block">
-                <User size={14} className="inline mr-1" />
-                Izina ry'umukiriya *
+              <Label htmlFor="name" className="mb-1.5 block text-sm font-medium">
+                <User size={14} className="mr-1 inline" />
+                {t("clients.customerName")} *
               </Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Andika izina..."
-                className="bg-white/50 input-glow text-base h-12"
+                placeholder={t("clients.customerNamePlaceholder")}
+                className="input-glow h-12 bg-white/50 text-base"
                 autoComplete="off"
               />
             </div>
 
             <div>
-              <Label htmlFor="phone" className="text-sm font-medium mb-1.5 block">
-                <Phone size={14} className="inline mr-1" />
-                Numero ya Telefone
+              <Label htmlFor="phone" className="mb-1.5 block text-sm font-medium">
+                <Phone size={14} className="mr-1 inline" />
+                {t("clients.phoneNumber")}
               </Label>
               <Input
                 id="phone"
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="07X XXX XXXX"
-                className="bg-white/50 input-glow text-base h-12"
+                placeholder={t("clients.phonePlaceholder")}
+                className="input-glow h-12 bg-white/50 text-base"
                 inputMode="tel"
                 autoComplete="off"
               />
@@ -192,55 +299,78 @@ const ClientsPage = () => {
             <Button
               onClick={handleSave}
               disabled={isSaving || !name.trim()}
-              className="w-full h-12 text-base btn-gold"
+              className="btn-gold h-12 w-full text-base"
             >
               {isSaving ? (
-                <div className="w-5 h-5 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin" />
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-foreground/30 border-t-foreground" />
               ) : (
                 <>
                   <UserPlus size={18} className="mr-2" />
-                  Emeza
+                  {t("clients.saveCustomer")}
                 </>
               )}
             </Button>
           </div>
         </div>
 
-        {/* Clients List */}
         <div className="space-y-3">
+          <div className="glass-card p-3">
+            <div className="relative">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={`${t("common.search")}...`}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
           <h2 className="text-sm font-semibold text-muted-foreground">
-            Abakiriya bose ({clients.length})
+            {t("clients.allCustomers")} ({filteredClients.length})
           </h2>
 
           {isLoading ? (
-            <div className="text-center py-8">
-              <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
+            <div className="py-8 text-center">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
             </div>
-          ) : clients.length === 0 ? (
+          ) : filteredClients.length === 0 ? (
             <div className="glass-card p-8 text-center">
               <User size={32} className="mx-auto mb-3 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">Nta mukiriya uhari</p>
-              <p className="text-xs text-muted-foreground/70 mt-1">
-                Ongeraho umukiriya wa mbere hejuru
+              <p className="text-sm text-muted-foreground">{t("clients.noCustomers")}</p>
+              <p className="mt-1 text-xs text-muted-foreground/70">
+                {t("clients.firstCustomerHint")}
               </p>
             </div>
           ) : (
             <div className="space-y-2">
-              {clients.map((client) => (
+              {filteredClients.map((client) => (
                 <div
                   key={client.id}
-                  className="glass-card p-4 flex items-center justify-between animate-fade-in"
+                  className="glass-card flex items-center justify-between p-4 animate-fade-in"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User size={18} className="text-primary" />
-                    </div>
+                    {client.image_url ? (
+                      <img
+                        src={client.image_url}
+                        alt={client.name}
+                        className="h-10 w-10 rounded-full border object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                        <User size={18} className="text-primary" />
+                      </div>
+                    )}
+
                     <div>
-                      <p className="font-medium text-sm">{client.name}</p>
+                      <p className="text-sm font-medium">{client.name}</p>
                       {client.phone && (
                         <a
                           href={`tel:${client.phone}`}
-                          className="text-xs text-primary flex items-center gap-1"
+                          className="flex items-center gap-1 text-xs text-primary"
                         >
                           <Phone size={10} />
                           {client.phone}
@@ -248,10 +378,11 @@ const ClientsPage = () => {
                       )}
                     </div>
                   </div>
+
                   <button
-                    onClick={() => handleDelete(client.name)}
-                    className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-                    title="Siba"
+                    onClick={() => handleDelete(client)}
+                    className="p-2 text-muted-foreground transition-colors hover:text-destructive"
+                    title={t("common.delete")}
                   >
                     <Trash2 size={16} />
                   </button>

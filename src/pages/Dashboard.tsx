@@ -4,6 +4,7 @@ import { useBusinessSettings } from "@/hooks/useBusinessSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
+import AppShell from "@/components/layout/AppShell";
 import {
   Plus,
   List,
@@ -184,311 +185,210 @@ const DashboardPage = () => {
       icon: Plus,
       label: t("navigation.addDebt"),
       path: "/add-debt",
-      bgClass: "bg-gradient-to-br from-primary to-navy-light",
+      bgClass: "from-primary to-navy-light",
+      textClass: "text-white",
       description: t("navigation.addDebt"),
     },
     {
       icon: List,
       label: t("navigation.debtList"),
       path: "/debts",
-      bgClass: "bg-gradient-to-br from-secondary to-gold-light",
-      textDark: true,
+      bgClass: "from-secondary to-gold-light",
+      textClass: "text-slate-900",
       description: t("debts.title"),
     },
     {
       icon: TrendingUp,
       label: t("navigation.salesTracking"),
       path: "/sales",
-      bgClass: "bg-gradient-to-br from-navy-light to-primary",
+      bgClass: "from-navy-light to-primary",
+      textClass: "text-white",
       description: t("sales.title"),
     },
     {
       icon: Package,
       label: t("navigation.inventory"),
       path: "/inventory",
-      bgClass: "bg-gradient-to-br from-gold-light to-secondary",
-      textDark: true,
+      bgClass: "from-gold-light to-secondary",
+      textClass: "text-slate-900",
       description: t("inventory.subtitle"),
     },
     {
       icon: Users,
       label: t("navigation.customers"),
       path: "/clients",
-      bgClass: "bg-gradient-to-br from-emerald-500 to-teal-600",
+      bgClass: "from-emerald-500 to-teal-600",
+      textClass: "text-white",
       description: t("clients.subtitle"),
     },
     {
       icon: Bell,
       label: t("navigation.messages"),
       path: "/inbox",
-      bgClass: "bg-gradient-to-br from-rose-500 to-orange-500",
+      bgClass: "from-rose-500 to-orange-500",
+      textClass: "text-white",
       description: t("notifications.debtMessages"),
     },
     {
       icon: Settings,
       label: t("navigation.settings"),
       path: "/settings",
-      bgClass: "bg-gradient-to-br from-slate-600 to-slate-700",
+      bgClass: "from-slate-600 to-slate-700",
+      textClass: "text-white",
       description: t("settings.subtitle"),
     },
   ];
 
+  const progress =
+    businessSettings.targetCapital && businessSettings.targetCapital > 0
+      ? Math.min((stats.totalSales / businessSettings.targetCapital) * 100, 100)
+      : 0;
+
   return (
-    <div
-      className="min-h-screen bg-gradient-to-br from-background via-muted to-background"
-      style={{ fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}
+    <AppShell
+      title={businessSettings.businessName || t("common.appName")}
+      subtitle={`${t("dashboard.welcome")}, ${profile?.displayName || "User"}! 📊`}
+      showBack={false}
+      showHome={false}
+      contentClassName="pt-2 md:pt-3"
+      headerRight={
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate("/install")}
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition hover:bg-slate-200 active:scale-95"
+            title={t("dashboard.installApp")}
+          >
+            <Download size={16} />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition hover:bg-red-50 hover:text-red-600 active:scale-95"
+            title={t("dashboard.logout")}
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
+      }
     >
-      <header className="glass-card sticky top-0 z-50 rounded-none border-x-0 border-t-0 px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
+      <div className="mx-auto w-full max-w-5xl space-y-4">
+        <div className="flex justify-center pb-1">
+          <div className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 ring-1 ring-slate-200">
             <img src={logo} alt={t("common.appName")} className="h-10 w-10 object-contain" />
             <div className="min-w-0">
-              <h1
-                className="truncate text-sm font-bold text-foreground"
-                style={{ fontSize: "14px", fontWeight: 600 }}
-              >
+              <p className="truncate text-sm font-bold text-slate-900">
                 {businessSettings.businessName || t("common.appName")}
-              </h1>
-              <p
-                className="truncate text-[10px] text-muted-foreground"
-                style={{ fontSize: "11px", color: "#64748b" }}
-              >
-                {t("dashboard.welcome")}, {profile?.displayName || "User"}! 📊
+              </p>
+              <p className="truncate text-xs text-slate-500">
+                {isOwner ? t("dashboard.ownerControl") : t("dashboard.employeeAccess")}
               </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate("/install")}
-              className="flex items-center gap-1 text-xs text-primary transition-colors hover:text-primary/80"
-              title={t("dashboard.installApp")}
-              style={{ fontSize: "12px" }}
-            >
-              <Download size={16} />
-            </button>
-
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-destructive"
-              style={{ fontSize: "12px" }}
-            >
-              <LogOut size={16} /> {t("dashboard.logout")}
-            </button>
-          </div>
         </div>
-      </header>
 
-      <main className="mx-auto max-w-lg space-y-5 p-4 pb-8">
         {loadingStats ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">
+          <div className="rounded-3xl bg-white p-10 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
             {t("common.loading")}
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3">
-              <div
-                className="glass-card animate-fade-in p-4"
-                style={{
-                  background: "rgba(255,255,255,0.95)",
-                  border: "1px solid rgba(239,68,68,0.1)",
-                }}
-              >
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-red-100">
                 <div className="mb-2 flex items-center gap-2">
-                  <div
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50"
-                    style={{ background: "linear-gradient(135deg,#fef2f2,#fee2e2)" }}
-                  >
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50">
                     <DollarSign size={16} className="text-red-600" />
                   </div>
-                  <span
-                    className="text-[10px] text-muted-foreground"
-                    style={{ fontSize: "11px", color: "#6b7280", fontWeight: 500 }}
-                  >
+                  <span className="text-xs font-medium text-slate-500">
                     {t("dashboard.totalUnpaid")}
                   </span>
                 </div>
-                <p
-                  className="text-lg font-bold text-red-600"
-                  style={{ fontSize: "18px", fontWeight: 700 }}
-                >
+                <p className="text-xl font-bold text-red-600">
                   {formatCurrency(stats.totalDebt)}
                 </p>
               </div>
 
-              <div
-                className="glass-card animate-fade-in p-4"
-                style={{
-                  background: "rgba(255,255,255,0.95)",
-                  border: "1px solid rgba(37,99,235,0.1)",
-                }}
-              >
+              <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
                 <div className="mb-2 flex items-center gap-2">
-                  <div
-                    className="flex h-8 w-8 items-center justify-center rounded-lg"
-                    style={{ background: "linear-gradient(135deg,#eff6ff,#dbeafe)" }}
-                  >
-                    <Users size={16} className="text-primary" style={{ color: "#2563eb" }} />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50">
+                    <Users size={16} className="text-blue-600" />
                   </div>
-                  <span
-                    className="text-[10px] text-muted-foreground"
-                    style={{ fontSize: "11px", color: "#6b7280", fontWeight: 500 }}
-                  >
+                  <span className="text-xs font-medium text-slate-500">
                     {t("dashboard.totalCustomers")}
                   </span>
                 </div>
-                <p
-                  className="text-lg font-bold text-primary"
-                  style={{ fontSize: "18px", fontWeight: 700, color: "#2563eb" }}
-                >
-                  {stats.totalCustomers}
+                <p className="text-xl font-bold text-blue-600">{stats.totalCustomers}</p>
+              </div>
+
+              <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-green-100">
+                <div className="mb-2 flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-50">
+                    <TrendingUp size={16} className="text-green-600" />
+                  </div>
+                  <span className="text-xs font-medium text-slate-500">
+                    {t("dashboard.todaySales")}
+                  </span>
+                </div>
+                <p className="text-xl font-bold text-green-600">
+                  {formatCurrency(stats.todayRevenue)}
+                </p>
+              </div>
+
+              <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-rose-100">
+                <div className="mb-2 flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50">
+                    <DollarSign size={16} className="text-rose-600" />
+                  </div>
+                  <span className="text-xs font-medium text-slate-500">
+                    {t("dashboard.todayDebt")}
+                  </span>
+                </div>
+                <p className="text-xl font-bold text-rose-600">
+                  {formatCurrency(stats.todayDebt)}
                 </p>
               </div>
             </div>
 
-            <div
-              className="glass-card p-4"
-              style={{
-                background: "rgba(255,255,255,0.95)",
-                border: "2px solid rgba(34,197,94,0.25)",
-                boxShadow: "0 4px 12px rgba(34,197,94,0.1)",
-              }}
-            >
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-blue-100">
               <div className="mb-2 flex items-center gap-2">
-                <div
-                  className="flex h-8 w-8 items-center justify-center rounded-lg"
-                  style={{ background: "linear-gradient(135deg,#f0fdf4,#dcfce7)" }}
-                >
-                  <TrendingUp size={16} className="text-green-600" />
-                </div>
-                <span
-                  className="text-[10px] text-muted-foreground"
-                  style={{ fontSize: "11px", color: "#6b7280", fontWeight: 500 }}
-                >
-                  {t("dashboard.todaySales")}
-                </span>
-              </div>
-              <p
-                className="text-lg font-bold text-green-600"
-                style={{ fontSize: "18px", fontWeight: 700, color: "#16a34a" }}
-              >
-                {formatCurrency(stats.todayRevenue)}
-              </p>
-            </div>
-
-            <div
-              className="glass-card p-4"
-              style={{
-                background: "rgba(255,255,255,0.95)",
-                border: "2px solid rgba(239,68,68,0.2)",
-                boxShadow: "0 4px 12px rgba(239,68,68,0.1)",
-              }}
-            >
-              <div className="mb-2 flex items-center gap-2">
-                <div
-                  className="flex h-8 w-8 items-center justify-center rounded-lg"
-                  style={{ background: "linear-gradient(135deg,#fef2f2,#fee2e2)" }}
-                >
-                  <DollarSign size={16} className="text-red-600" />
-                </div>
-                <span
-                  className="text-[10px] text-muted-foreground"
-                  style={{ fontSize: "11px", color: "#6b7280", fontWeight: 500 }}
-                >
-                  {t("dashboard.todayDebt")}
-                </span>
-              </div>
-              <p
-                className="text-lg font-bold text-red-600"
-                style={{ fontSize: "18px", fontWeight: 700, color: "#dc2626" }}
-              >
-                {formatCurrency(stats.todayDebt)}
-              </p>
-            </div>
-
-            <div
-              className="glass-card animate-fade-in p-4"
-              style={{
-                background: "rgba(255,255,255,0.95)",
-                border: "1px solid rgba(59,130,246,0.1)",
-                boxShadow: "0 4px 12px rgba(59,130,246,0.08)",
-              }}
-            >
-              <div className="mb-2 flex items-center gap-2">
-                <div
-                  className="flex h-8 w-8 items-center justify-center rounded-lg"
-                  style={{ background: "linear-gradient(135deg,#eff6ff,#dbeafe)" }}
-                >
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50">
                   <TrendingUp size={16} className="text-blue-600" />
                 </div>
-                <span
-                  className="text-[10px] text-muted-foreground"
-                  style={{ fontSize: "11px", color: "#6b7280", fontWeight: 500 }}
-                >
+                <span className="text-xs font-medium text-slate-500">
                   {t("dashboard.totalSales")}
                 </span>
               </div>
-              <p
-                className="text-lg font-bold text-blue-600"
-                style={{ fontSize: "18px", fontWeight: 700, color: "#2563eb" }}
-              >
+              <p className="text-2xl font-bold text-blue-600">
                 {formatCurrency(stats.totalSales)}
               </p>
             </div>
 
-            <div
-              className="gold-glow relative col-span-2 overflow-hidden rounded-3xl p-4 animate-fade-in"
-              style={{
-                background: "linear-gradient(135deg,#1e1b4b,#312e81)",
-                border: "1px solid rgba(168,85,247,0.3)",
-                boxShadow: "0 8px 32px rgba(168,85,247,0.2)",
-              }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-indigo-500/20" />
-              <div className="relative z-10 flex items-center justify-between gap-4">
+            <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-indigo-950 via-indigo-900 to-violet-900 p-5 text-white shadow-xl">
+              <div className="absolute inset-0 bg-gradient-to-r from-pink-500/15 via-purple-500/10 to-indigo-500/15" />
+              <div className="relative z-10 flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <p
-                    className="text-xs text-primary-foreground/70"
-                    style={{ fontSize: "12px", color: "rgba(255,255,255,0.8)", fontWeight: 500 }}
-                  >
+                  <p className="text-xs font-medium text-white/80">
                     {t("dashboard.target")} 🎯
                   </p>
-                  <p
-                    className="text-lg font-semibold text-white"
-                    style={{ fontSize: "18px", fontWeight: 600 }}
-                  >
+                  <p className="mt-1 text-xl font-semibold text-white">
                     {businessSettings.targetCapital && businessSettings.targetCapital > 0
                       ? formatCurrency(businessSettings.targetCapital)
                       : t("dashboard.setTargetInSettings")}
                   </p>
 
                   <div className="mt-4">
-                    <div
-                      className="h-3 w-full overflow-hidden rounded-full"
-                      style={{ background: "rgba(255,255,255,0.1)" }}
-                    >
+                    <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-pink-400 to-purple-400 transition-all duration-1000 ease-out"
-                        style={{
-                          width: `${
-                            businessSettings.targetCapital && businessSettings.targetCapital > 0
-                              ? Math.min((stats.totalSales / businessSettings.targetCapital) * 100, 100)
-                              : 0
-                          }%`,
-                        }}
+                        style={{ width: `${progress}%` }}
                       />
                     </div>
 
-                    <div
-                      className="mt-2 flex justify-between text-[10px] text-white/70"
-                      style={{ fontSize: "11px" }}
-                    >
+                    <div className="mt-2 flex flex-col gap-1 text-xs text-white/75 sm:flex-row sm:items-center sm:justify-between">
                       <span>
                         {businessSettings.targetCapital && businessSettings.targetCapital > 0
-                          ? `${Math.min(
-                              (stats.totalSales / businessSettings.targetCapital) * 100,
-                              100
-                            ).toFixed(1)}%`
+                          ? `${progress.toFixed(1)}%`
                           : t("dashboard.setTargetInSettings")}
                       </span>
                       <span>
@@ -501,60 +401,46 @@ const DashboardPage = () => {
                     </div>
                   </div>
 
-                  <p
-                    className="mt-2 text-[10px] text-primary-foreground/50"
-                    style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)" }}
-                  >
-                    {t("dashboard.connectedCapital")}: {formatCurrency(businessSettings.initialCapital)}
+                  <p className="mt-3 text-xs text-white/60">
+                    {t("dashboard.connectedCapital")}:{" "}
+                    {formatCurrency(businessSettings.initialCapital)}
                   </p>
                 </div>
 
-                <div
-                  className="flex h-12 w-12 items-center justify-center rounded-xl"
-                  style={{
-                    background: "rgba(255,255,255,0.1)",
-                    border: "1px solid rgba(255,255,255,0.2)",
-                  }}
-                >
-                  <Gem size={24} style={{ color: "#fbbf24" }} />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10">
+                  <Gem size={24} className="text-amber-300" />
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               {menuItems.map((item, index) => (
                 <button
                   key={item.path + index}
+                  type="button"
                   onClick={() => navigate(item.path)}
-                  className={`${item.bgClass} rounded-2xl p-4 text-left transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]`}
+                  className={`rounded-[24px] bg-gradient-to-br ${item.bgClass} p-4 text-left transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]`}
                   style={{
-                    boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
-                    border: "1px solid rgba(255,255,255,0.1)",
+                    boxShadow: "0 6px 18px rgba(0,0,0,0.10)",
+                    border: "1px solid rgba(255,255,255,0.10)",
                   }}
                 >
                   <div
                     className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${
-                      item.textDark ? "bg-foreground/10" : "bg-white/20"
+                      item.textClass === "text-white" ? "bg-white/20" : "bg-slate-900/10"
                     }`}
                   >
-                    <item.icon
-                      size={20}
-                      className={item.textDark ? "text-foreground" : "text-white"}
-                    />
+                    <item.icon size={20} className={item.textClass} />
                   </div>
-                  <h3
-                    className={`mb-1 text-sm font-semibold ${
-                      item.textDark ? "text-foreground" : "text-white"
-                    }`}
-                    style={{ fontSize: "14px", fontWeight: 600 }}
-                  >
+
+                  <h3 className={`mb-1 text-sm font-semibold ${item.textClass}`}>
                     {item.label}
                   </h3>
+
                   <p
-                    className={`text-[10px] ${
-                      item.textDark ? "text-foreground/60" : "text-white/70"
+                    className={`text-[11px] ${
+                      item.textClass === "text-white" ? "text-white/75" : "text-slate-700/70"
                     }`}
-                    style={{ fontSize: "11px", fontWeight: 400 }}
                   >
                     {item.description}
                   </p>
@@ -562,22 +448,22 @@ const DashboardPage = () => {
               ))}
             </div>
 
-            <div className="space-y-3 pt-4">
+            <div className="space-y-3 pt-1">
               <ChangePinCard />
 
               {isOwner ? (
-                <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
-                  <p className="mb-2 text-xs uppercase tracking-[0.28em] text-slate-500">
+                <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="mb-2 text-xs uppercase tracking-[0.24em] text-slate-500">
                     {t("dashboard.ownerControl")}
                   </p>
                   <p className="text-sm text-slate-700">{t("dashboard.ownerControlText")}</p>
                 </div>
               ) : (
-                <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4 text-blue-700">
+                <div className="rounded-[24px] border border-blue-100 bg-blue-50 p-4 text-blue-700">
                   <div className="flex items-start gap-3">
                     <ShieldAlert size={18} />
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.28em]">
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em]">
                         {t("dashboard.employeeAccess")}
                       </p>
                       <p className="text-sm">{t("dashboard.employeeNotice")}</p>
@@ -592,8 +478,8 @@ const DashboardPage = () => {
             </div>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 };
 

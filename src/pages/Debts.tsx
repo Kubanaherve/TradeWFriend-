@@ -26,6 +26,7 @@ import {
   Calendar,
   User,
 } from "lucide-react";
+import AppShell from "@/components/layout/AppShell";
 
 type CustomerRow = {
   id: string;
@@ -168,122 +169,130 @@ const DebtsPage = () => {
       .filter(Boolean)
       .join("\n");
   };
+const fetchLedgers = useCallback(async () => {
+  setLoading(true);
 
-  const fetchLedgers = useCallback(async () => {
-    setLoading(true);
+  try {
+    const [customersResponse, debtItemsResponse, paymentsResponse] = await Promise.all([
+      (supabase as any)
+        .from("customers")
+        .select("id, name, phone, due_date, is_paid, amount, items, created_at, image_url")
+        .order("created_at", { ascending: false }),
+      (supabase as any)
+        .from("debt_items")
+        .select("*")
+        .order("date_taken", { ascending: false }),
+      (supabase as any)
+        .from("debt_payments")
+        .select("*")
+        .order("paid_at", { ascending: false }),
+    ]);
 
-    try {
-      const [customersResponse, debtItemsResponse, paymentsResponse] = await Promise.all([
-        (supabase as any)
-          .from("customers")
-          .select("id, name, phone, due_date, is_paid, amount, items, created_at, image_url")
-          .order("created_at", { ascending: false }),
-        (supabase as any)
-          .from("debt_items")
-          .select("*")
-          .order("date_taken", { ascending: false }),
-        (supabase as any)
-          .from("debt_payments")
-          .select("*")
-          .order("paid_at", { ascending: false }),
-      ]);
+    if (customersResponse.error) throw customersResponse.error;
+    if (debtItemsResponse.error) throw debtItemsResponse.error;
+    if (paymentsResponse.error) throw paymentsResponse.error;
 
-      if (customersResponse.error) throw customersResponse.error;
-      if (debtItemsResponse.error) throw debtItemsResponse.error;
-      if (paymentsResponse.error) throw paymentsResponse.error;
+    const customerRows = (customersResponse.data ?? []) as CustomerRow[];
+    const debtItems = (debtItemsResponse.data ?? []) as DebtItemRow[];
+    const payments = (paymentsResponse.data ?? []) as DebtPaymentRow[];
 
-      const customerRows = (customersResponse.data ?? []) as CustomerRow[];
-      const debtItems = (debtItemsResponse.data ?? []) as DebtItemRow[];
-      const payments = (paymentsResponse.data ?? []) as DebtPaymentRow[];
+    const debtItemsByCustomer = new Map<string, DebtItemRow[]>();
+    const paymentsByCustomer = new Map<string, DebtPaymentRow[]>();
 
-      const debtItemsByCustomer = new Map<string, DebtItemRow[]>();
-      const paymentsByCustomer = new Map<string, DebtPaymentRow[]>();
-
-      for (const item of debtItems) {
-        const list = debtItemsByCustomer.get(item.customer_id) ?? [];
-        list.push(item);
-        debtItemsByCustomer.set(item.customer_id, list);
-      }
-
-      for (const payment of payments) {
-        const list = paymentsByCustomer.get(payment.customer_id) ?? [];
-        list.push(payment);
-        paymentsByCustomer.set(payment.customer_id, list);
-      }
-
-      const ledgers: CustomerLedger[] = customerRows
-        .map((customer) => {
-          const customerItems = debtItemsByCustomer.get(customer.id) ?? [];
-          const customerPayments = paymentsByCustomer.get(customer.id) ?? [];
-
-          const totalDebt = customerItems.reduce(
-            (sum, item) => sum + Number(item.total_price || 0),
-            0
-          );
-
-          const totalPaid = customerPayments.reduce(
-            (sum, payment) => sum + Number(payment.amount_paid || 0),
-            0
-          );
-
-          const remaining = Math.max(totalDebt - totalPaid, 0);
-          const lastDebtDate = customerItems.length > 0 ? customerItems[0].date_taken : null;
-
-          return {
-            id: customer.id,
-            name: customer.name || "Unknown",
-            phone: customer.phone || null,
-            created_at: customer.created_at,
-            due_date: customer.due_date || null,
-            image_url: customer.image_url || null,
-            items: customerItems,
-            payments: customerPayments,
-            totalDebt,
-            totalPaid,
-            remaining,
-            lastDebtDate,
-          };
-        })
-        .filter((ledger) => ledger.remaining > 0)
-        .sort((a, b) => {
-          const aDate = a.lastDebtDate || a.created_at;
-          const bDate = b.lastDebtDate || b.created_at;
-          return bDate.localeCompare(aDate);
-        });
-
-      setCustomers(ledgers);
-    } catch (err) {
-      console.error("Fetch ledgers error:", err);
-      toast.error(t("errors.loadFailed"));
-    } finally {
-      setLoading(false);
+    for (const item of debtItems) {
+      const list = debtItemsByCustomer.get(item.customer_id) ?? [];
+      list.push(item);
+      debtItemsByCustomer.set(item.customer_id, list);
     }
-  }, [t]);
 
-  useEffect(() => {
+    for (const payment of payments) {
+      const list = paymentsByCustomer.get(payment.customer_id) ?? [];
+      list.push(payment);
+      paymentsByCustomer.set(payment.customer_id, list);
+    }
+
+    const ledgers: CustomerLedger[] = customerRows
+      .map((customer) => {
+        const customerItems = debtItemsByCustomer.get(customer.id) ?? [];
+        const customerPayments = paymentsByCustomer.get(customer.id) ?? [];
+
+        const totalDebt = customerItems.reduce(
+          (sum, item) => sum + Number(item.total_price || 0),
+          0
+        );
+
+        const totalPaid = customerPayments.reduce(
+          (sum, payment) => sum + Number(payment.amount_paid || 0),
+          0
+        );
+
+        const remaining = Math.max(totalDebt - totalPaid, 0);
+        const lastDebtDate =
+          customerItems.length > 0
+            ? [...customerItems]
+                .sort((a, b) => String(b.date_taken).localeCompare(String(a.date_taken)))[0]
+                ?.date_taken ?? null
+            : null;
+
+        return {
+          id: customer.id,
+          name: customer.name || "Unknown",
+          phone: customer.phone || null,
+          created_at: customer.created_at,
+          due_date: customer.due_date || null,
+          image_url: customer.image_url || null,
+          items: customerItems,
+          payments: customerPayments,
+          totalDebt,
+          totalPaid,
+          remaining,
+          lastDebtDate,
+        };
+      })
+      .filter((ledger) => ledger.items.length > 0 && ledger.totalDebt > 0 && ledger.remaining > 0)
+      .sort((a, b) => {
+        const aDate = a.lastDebtDate || a.created_at;
+        const bDate = b.lastDebtDate || b.created_at;
+        return String(bDate).localeCompare(String(aDate));
+      });
+
+    setCustomers(ledgers);
+
+    if (selectedCustomer) {
+      const freshSelected = ledgers.find((ledger) => ledger.id === selectedCustomer.id);
+      setSelectedCustomer(freshSelected ?? null);
+      if (!freshSelected) {
+        setPaymentModalOpen(false);
+      }
+    }
+  } catch (err) {
+    console.error("Fetch ledgers error:", err);
+    toast.error(t("errors.loadFailed"));
+  } finally {
+    setLoading(false);
+  }
+}, [t, selectedCustomer]);
+useEffect(() => {
+  const refresh = () => {
     void fetchLedgers();
-  }, [fetchLedgers]);
+  };
 
-  useEffect(() => {
-    const refresh = () => {
-      void fetchLedgers();
-    };
+  window.addEventListener("newDebtAdded", refresh as EventListener);
+  window.addEventListener("paymentMade", refresh as EventListener);
+  window.addEventListener("debtDeleted", refresh as EventListener);
+  window.addEventListener("clientDeleted", refresh as EventListener);
+  window.addEventListener("factoryReset", refresh as EventListener);
+  window.addEventListener("focus", refresh);
 
-    window.addEventListener("newDebtAdded", refresh as EventListener);
-    window.addEventListener("paymentMade", refresh as EventListener);
-    window.addEventListener("debtDeleted", refresh as EventListener);
-    window.addEventListener("clientDeleted", refresh as EventListener);
-    window.addEventListener("focus", refresh);
-
-    return () => {
-      window.removeEventListener("newDebtAdded", refresh as EventListener);
-      window.removeEventListener("paymentMade", refresh as EventListener);
-      window.removeEventListener("debtDeleted", refresh as EventListener);
-      window.removeEventListener("clientDeleted", refresh as EventListener);
-      window.removeEventListener("focus", refresh);
-    };
-  }, [fetchLedgers]);
-
+  return () => {
+    window.removeEventListener("newDebtAdded", refresh as EventListener);
+    window.removeEventListener("paymentMade", refresh as EventListener);
+    window.removeEventListener("debtDeleted", refresh as EventListener);
+    window.removeEventListener("clientDeleted", refresh as EventListener);
+    window.removeEventListener("factoryReset", refresh as EventListener);
+    window.removeEventListener("focus", refresh);
+  };
+}, [fetchLedgers]);
   const filteredCustomers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return customers;
@@ -822,173 +831,151 @@ const DebtsPage = () => {
     }
   };
 
-  return (
-    <div
-      className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 text-slate-900"
-      style={{ fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}
-    >
-      <div className="pointer-events-none absolute -left-20 top-10 h-72 w-72 rounded-full bg-gradient-to-br from-indigo-300/35 to-transparent blur-3xl" />
-      <div className="pointer-events-none absolute right-0 top-32 h-80 w-80 rounded-full bg-gradient-to-br from-cyan-300/25 to-transparent blur-3xl" />
+ return (
+  <AppShell
+    title={t("debts.title")}
+    subtitle={t("debts.debtReport")}
+    showBack
+    showHome
+    contentClassName="pt-2 md:pt-3"
+    headerRight={
+      <div className="flex items-center gap-2">
+        {isOwner && (
+          <Button
+            onClick={downloadFullList}
+            disabled={isDownloading}
+            size="sm"
+            variant="outline"
+            className="h-9 rounded-xl border-green-500/40 px-3 text-xs font-semibold text-green-700 hover:bg-green-50"
+          >
+            {isDownloading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-500/30 border-t-green-500" />
+            ) : (
+              <Download size={15} />
+            )}
+            <span className="ml-1 hidden sm:inline">PDF</span>
+          </Button>
+        )}
 
-      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/85 px-4 py-3 shadow-sm backdrop-blur-xl">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition-all hover:bg-slate-200 active:scale-95"
-            >
-              <ArrowLeft size={20} />
-            </button>
+        <Button
+          onClick={() => navigate("/add-debt")}
+          size="sm"
+          className="h-9 rounded-xl bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800"
+        >
+          <Plus size={15} className="mr-1" />
+          {t("navigation.addDebt")}
+        </Button>
+      </div>
+    }
+  >
+    <div className="mx-auto w-full max-w-5xl space-y-4">
+      <div className="rounded-[24px] border border-slate-200 bg-white p-3 shadow-sm">
+        <Input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={`${t("common.search")}...`}
+          className="h-11 rounded-xl border-slate-200 bg-slate-50 pl-3 text-sm"
+        />
+      </div>
 
-            <div className="min-w-0">
-              <h1 className="truncate text-[15px] font-bold text-slate-900">
-                {t("debts.title")}
-              </h1>
-              <p className="text-[11px] text-slate-500">
-                {t("debts.debtReport")}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-[24px] bg-slate-900 p-4 text-white shadow-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+            {t("debts.totalDebt")}
+          </p>
+          <p className="mt-2 text-2xl font-bold">{formatCurrency(totalUnpaid)}</p>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                {t("dashboard.totalCustomers")}
+              </p>
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {filteredCustomers.length}
               </p>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            {isOwner && (
-              <Button
-                onClick={downloadFullList}
-                disabled={isDownloading}
-                size="sm"
-                variant="outline"
-                className="h-10 rounded-xl border-green-500/40 px-3 text-xs font-semibold text-green-700 hover:bg-green-50"
-              >
-                {isDownloading ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-500/30 border-t-green-500" />
-                ) : (
-                  <Download size={15} />
-                )}
-                <span className="ml-1 hidden sm:inline">PDF</span>
-              </Button>
-            )}
-
-            <Button
-              onClick={() => navigate("/add-debt")}
-              size="sm"
-              className="h-10 rounded-xl bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800"
-            >
-              <Plus size={15} className="mr-1" />
-              {t("navigation.addDebt")}
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl space-y-4 px-4 py-4 pb-10">
-        <div className="rounded-2xl border border-white/70 bg-white/90 p-3 shadow-sm">
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={`${t("common.search")}...`}
-            className="h-11 rounded-xl border-slate-200 bg-slate-50 pl-3 text-sm"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl bg-slate-900 p-4 text-white shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-              {t("debts.totalDebt")}
-            </p>
-            <p className="mt-2 text-2xl font-bold">{formatCurrency(totalUnpaid)}</p>
-          </div>
-
-          <div className="rounded-2xl border border-white/70 bg-white/90 p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  {t("dashboard.totalCustomers")}
-                </p>
-                <p className="mt-2 text-2xl font-bold text-slate-900">
-                  {filteredCustomers.length}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-slate-600">
-                <Users size={16} />
-                <span className="text-xs font-semibold">{t("debts.debtReport")}</span>
-              </div>
+            <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-slate-600">
+              <Users size={16} />
+              <span className="text-xs font-semibold">{t("debts.debtReport")}</span>
             </div>
           </div>
         </div>
+      </div>
 
-        {filteredCustomers.length === 0 && !loading ? (
-          <div className="rounded-2xl border border-white/70 bg-white/90 p-10 text-center shadow-sm">
-            <Users size={28} className="mx-auto mb-3 text-slate-300" />
-            <p className="text-sm font-medium text-slate-700">{t("debts.noDebts")}</p>
-          </div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {filteredCustomers.map((customer) => (
-              <div
-                key={customer.id}
-                className="cursor-pointer rounded-2xl border border-white/70 bg-white/95 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-                onClick={() => setSelectedCustomer(customer)}
-              >
-                <div className="flex items-start gap-3">
-                  {customer.image_url ? (
-                    <img
-                      src={customer.image_url}
-                      alt={customer.name}
-                      className="h-12 w-12 rounded-full border object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-                      <User size={18} className="text-slate-500" />
+      {filteredCustomers.length === 0 && !loading ? (
+        <div className="rounded-[24px] border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <Users size={28} className="mx-auto mb-3 text-slate-300" />
+          <p className="text-sm font-medium text-slate-700">{t("debts.noDebts")}</p>
+        </div>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {filteredCustomers.map((customer) => (
+            <div
+              key={customer.id}
+              className="cursor-pointer rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+              onClick={() => setSelectedCustomer(customer)}
+            >
+              <div className="flex items-start gap-3">
+                {customer.image_url ? (
+                  <img
+                    src={customer.image_url}
+                    alt={customer.name}
+                    className="h-12 w-12 rounded-full border object-cover"
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+                    <User size={18} className="text-slate-500" />
+                  </div>
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-900">
+                        {customer.name}
+                      </p>
+                      {customer.phone && (
+                        <p className="mt-1 text-xs text-slate-500">{customer.phone}</p>
+                      )}
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-red-600">
+                        {formatCurrency(customer.remaining)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-500">
+                    {customer.items.length === 0
+                      ? t("debts.noItemsRecorded")
+                      : customer.items
+                          .slice(0, 3)
+                          .map((item) => `${item.item_name} x${item.quantity}`)
+                          .join(", ")}
+                  </p>
+
+                  {customer.due_date && (
+                    <div className="mt-3 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                      <Calendar size={11} />
+                      {formatDate(customer.due_date)}
                     </div>
                   )}
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-slate-900">
-                          {customer.name}
-                        </p>
-                        {customer.phone && (
-                          <p className="mt-1 text-xs text-slate-500">{customer.phone}</p>
-                        )}
-                      </div>
-
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-red-600">
-                          {formatCurrency(customer.remaining)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-500">
-                      {customer.items.length === 0
-                        ? t("debts.noItemsRecorded")
-                        : customer.items
-                            .slice(0, 3)
-                            .map((item) => `${item.item_name} x${item.quantity}`)
-                            .join(", ")}
-                    </p>
-
-                    {customer.due_date && (
-                      <div className="mt-3 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
-                        <Calendar size={11} />
-                        {formatDate(customer.due_date)}
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
-            ))}
+            </div>
+          ))}
 
-            {loading && (
-              <div className="col-span-full rounded-2xl border border-white/70 bg-white/90 p-8 text-center shadow-sm">
-                <p className="text-sm text-slate-500">{t("common.loading")}</p>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
+          {loading && (
+            <div className="col-span-full rounded-[24px] border border-slate-200 bg-white p-8 text-center shadow-sm">
+              <p className="text-sm text-slate-500">{t("common.loading")}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 sm:items-center sm:p-4">
@@ -1024,6 +1011,7 @@ const DebtsPage = () => {
               </div>
 
               <button
+                type="button"
                 onClick={() => setSelectedCustomer(null)}
                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200"
               >
@@ -1130,6 +1118,7 @@ const DebtsPage = () => {
               {selectedCustomer.phone && (
                 <>
                   <button
+                    type="button"
                     onClick={() => handleWhatsApp(selectedCustomer, "report")}
                     className="flex h-14 w-14 items-center justify-center rounded-full bg-green-50 shadow-sm transition-transform hover:scale-105"
                     title={t("debts.sendReport")}
@@ -1140,6 +1129,7 @@ const DebtsPage = () => {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => void downloadCustomerPdf(selectedCustomer)}
                     disabled={downloadingCustomerId === selectedCustomer.id}
                     className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
@@ -1153,6 +1143,7 @@ const DebtsPage = () => {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => handleSMS(selectedCustomer, "request")}
                     className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-50 shadow-sm transition-transform hover:scale-105"
                     title={t("messages.sendSms")}
@@ -1161,6 +1152,7 @@ const DebtsPage = () => {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => handleCall(selectedCustomer.phone)}
                     className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 shadow-sm transition-transform hover:scale-105"
                     title={t("debts.callCustomer")}
@@ -1173,6 +1165,7 @@ const DebtsPage = () => {
               {isOwner && (
                 <>
                   <button
+                    type="button"
                     onClick={() => openPayment(selectedCustomer)}
                     className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-700 shadow-lg transition-transform hover:scale-105"
                     title={t("debts.registerPayment")}
@@ -1181,6 +1174,7 @@ const DebtsPage = () => {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => handleDelete(selectedCustomer)}
                     className="flex h-14 w-14 items-center justify-center rounded-full bg-red-600 shadow-lg transition-transform hover:scale-105"
                     title={t("common.delete")}
@@ -1204,7 +1198,8 @@ const DebtsPage = () => {
         />
       )}
     </div>
-  );
+  </AppShell>
+);
 };
 
 export default DebtsPage;

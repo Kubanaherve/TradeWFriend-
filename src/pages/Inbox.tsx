@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Bell,
   Check,
   MessageCircle,
@@ -25,6 +24,7 @@ import {
   type DebtAlertCustomer,
 } from "@/lib/debtAlerts";
 import { toast } from "sonner";
+import AppShell from "@/components/layout/AppShell";
 
 interface InboxCustomer {
   id: string;
@@ -209,127 +209,108 @@ const InboxPage = () => {
   };
 
   const urgentCount = alerts.filter((alert) => alert.amount >= 10000).length;
-
-  return (
-    <div
-      className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 text-slate-900"
-      style={{ fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}
-    >
-      <div className="pointer-events-none absolute -left-20 top-10 h-72 w-72 rounded-full bg-gradient-to-br from-indigo-300/35 to-transparent blur-3xl" />
-      <div className="pointer-events-none absolute right-0 top-32 h-80 w-80 rounded-full bg-gradient-to-br from-cyan-300/25 to-transparent blur-3xl" />
-
-      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/85 px-4 py-3 shadow-sm backdrop-blur-xl">
-        <div className="mx-auto flex max-w-5xl items-center gap-3">
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition-all hover:bg-slate-200 active:scale-95"
-          >
-            <ArrowLeft size={20} />
-          </button>
-
-          <div className="min-w-0">
-            <h1 className="truncate text-[15px] font-bold text-slate-900">
-              {t("inbox.title")}
-            </h1>
-            <p className="text-[11px] text-slate-500">{t("inbox.subtitle")}</p>
+return (
+  <AppShell
+    title={t("inbox.title")}
+    subtitle={t("inbox.subtitle")}
+    showBack
+    showHome
+    contentClassName="pt-2 md:pt-3"
+  >
+    <div className="mx-auto w-full max-w-5xl space-y-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-2 flex items-center gap-2 text-slate-500">
+            <Bell size={16} />
+            <span className="text-[11px] font-semibold uppercase tracking-wide">
+              {t("inbox.importantMessages")}
+            </span>
           </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl space-y-4 px-4 py-4 pb-10">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="rounded-2xl border border-white/70 bg-white/90 p-4 shadow-sm">
-            <div className="mb-2 flex items-center gap-2 text-slate-500">
-              <Bell size={16} />
-              <span className="text-[11px] font-semibold uppercase tracking-wide">
-                {t("inbox.importantMessages")}
-              </span>
-            </div>
-            <p className="text-xl font-bold text-slate-900">{alerts.length}</p>
-          </div>
-
-          <div className="rounded-2xl border border-red-100 bg-white/90 p-4 shadow-sm">
-            <div className="mb-2 flex items-center gap-2 text-slate-500">
-              <AlertTriangle size={16} />
-              <span className="text-[11px] font-semibold uppercase tracking-wide">
-                {t("inbox.urgentAlerts")}
-              </span>
-            </div>
-            <p className="text-xl font-bold text-red-600">{urgentCount}</p>
-          </div>
+          <p className="text-xl font-bold text-slate-900">{alerts.length}</p>
         </div>
 
-        {loading ? (
-          <div className="rounded-2xl border border-white/70 bg-white/90 p-10 text-center shadow-sm">
-            <p className="text-sm text-slate-500">{t("common.loading")}</p>
+        <div className="rounded-[24px] border border-red-100 bg-white p-4 shadow-sm">
+          <div className="mb-2 flex items-center gap-2 text-slate-500">
+            <AlertTriangle size={16} />
+            <span className="text-[11px] font-semibold uppercase tracking-wide">
+              {t("inbox.urgentAlerts")}
+            </span>
           </div>
-        ) : alerts.length === 0 ? (
-          <div className="rounded-2xl border border-white/70 bg-white/90 p-8 text-center shadow-sm">
-            <Bell size={30} className="mx-auto mb-3 text-slate-300" />
-            <p className="text-sm font-medium text-slate-700">{t("inbox.noMessages")}</p>
-          </div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {alerts.map((alert) => (
-              <div
-                key={alert.id}
-                className="rounded-2xl border border-white/70 bg-white/95 p-4 shadow-sm"
-              >
-                <div className="mb-3 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="text-[15px] font-bold text-slate-900">{alert.title}</h2>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                      {alert.message}
-                    </p>
-                  </div>
+          <p className="text-xl font-bold text-red-600">{urgentCount}</p>
+        </div>
+      </div>
 
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-red-600">
-                      {formatCurrency(alert.amount)}
-                    </p>
-                    <p className="mt-1 text-[10px] text-slate-400">
-                      {formatDate(alert.createdAt)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-1 text-[11px] text-slate-500">
-                  <p>
-                    {t("inbox.customer")}: <span className="font-semibold text-slate-700">{alert.customerName}</span>
+      {loading ? (
+        <div className="rounded-[24px] border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <p className="text-sm text-slate-500">{t("common.loading")}</p>
+        </div>
+      ) : alerts.length === 0 ? (
+        <div className="rounded-[24px] border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <Bell size={30} className="mx-auto mb-3 text-slate-300" />
+          <p className="text-sm font-medium text-slate-700">{t("inbox.noMessages")}</p>
+        </div>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {alerts.map((alert) => (
+            <div
+              key={alert.id}
+              className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-[15px] font-bold text-slate-900">{alert.title}</h2>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    {alert.message}
                   </p>
-                  {alert.phone && <p>{t("auth.phoneNumber")}: {alert.phone}</p>}
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <Button
-                    size="sm"
-                    className="h-10 rounded-xl text-xs font-semibold"
-                    onClick={() => openCustomerCard(alert)}
-                  >
-                    <Check size={14} className="mr-1" />
-                    {t("inbox.viewCard")}
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-10 rounded-xl text-xs font-semibold"
-                    onClick={() => {
-                      const customer = customersById[alert.customerId];
-                      if (customer) {
-                        sendWhatsAppToCustomer(customer);
-                      }
-                    }}
-                  >
-                    <MessageCircle size={14} className="mr-1" />
-                    WhatsApp
-                  </Button>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-red-600">
+                    {formatCurrency(alert.amount)}
+                  </p>
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    {formatDate(alert.createdAt)}
+                  </p>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </main>
+
+              <div className="space-y-1 text-[11px] text-slate-500">
+                <p>
+                  {t("inbox.customer")}:{" "}
+                  <span className="font-semibold text-slate-700">{alert.customerName}</span>
+                </p>
+                {alert.phone && <p>{t("auth.phoneNumber")}: {alert.phone}</p>}
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <Button
+                  size="sm"
+                  className="h-10 rounded-xl text-xs font-semibold"
+                  onClick={() => openCustomerCard(alert)}
+                >
+                  <Check size={14} className="mr-1" />
+                  {t("inbox.viewCard")}
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10 rounded-xl text-xs font-semibold"
+                  onClick={() => {
+                    const customer = customersById[alert.customerId];
+                    if (customer) {
+                      sendWhatsAppToCustomer(customer);
+                    }
+                  }}
+                >
+                  <MessageCircle size={14} className="mr-1" />
+                  WhatsApp
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-4 sm:items-center">
@@ -368,6 +349,7 @@ const InboxPage = () => {
               </div>
 
               <button
+                type="button"
                 onClick={() => setSelectedCustomer(null)}
                 className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100"
               >
@@ -440,7 +422,8 @@ const InboxPage = () => {
         </div>
       )}
     </div>
-  );
+  </AppShell>
+);
 };
 
 export default InboxPage;

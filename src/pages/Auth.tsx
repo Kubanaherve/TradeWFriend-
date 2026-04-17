@@ -429,12 +429,15 @@ const AuthPage = () => {
     setScreen("pin_entry");
   };
 
-  const removeRememberedAccount = (phoneToRemove: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    auth.removeAccount(phoneToRemove);
-    const updated = refreshAccounts();
-    if (updated.length === 0) setScreen("welcome");
-  };
+ const removeRememberedAccount = (
+  phoneToRemove: string,
+  e: React.MouseEvent<HTMLElement>
+) => {
+  e.stopPropagation();
+  auth.removeAccount(phoneToRemove);
+  const updated = refreshAccounts();
+  if (updated.length === 0) setScreen("welcome");
+};
 
   const title = useMemo(() => {
     if (screen === "welcome") return t("common.appName");
@@ -475,6 +478,7 @@ const AuthPage = () => {
 
   if (auth.isLoading || screen === "checking") {
     return (
+
       <div style={S.page}>
         <div style={S.blob1} />
         <div style={S.blob2} />
@@ -509,85 +513,141 @@ const AuthPage = () => {
   }
 
   if (screen === "accounts") {
-    return (
-      <div style={S.page}>
-        <div style={S.blob1} />
-        <div style={S.blob2} />
-        <div style={S.card}>
-          <Header />
+  return (
+    <div style={S.page}>
+      <div style={S.blob1} />
+      <div style={S.blob2} />
+      <div style={S.card}>
+        <Header />
 
-          {accounts.map((acc) => (
-            <button
-              key={acc.phone}
-              type="button"
-              onClick={() => {
+        {accounts.map((acc) => (
+          <div
+            key={acc.phone}
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              setSelectedPhone(acc.phone);
+              setSelectedDisplayName(acc.displayName);
+              setSelectedRole(acc.role);
+              resetPins();
+              setScreen("pin_entry");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
                 setSelectedPhone(acc.phone);
                 setSelectedDisplayName(acc.displayName);
                 setSelectedRole(acc.role);
                 resetPins();
                 setScreen("pin_entry");
+              }
+            }}
+            style={S.accountCard}
+          >
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 16,
+                background: "linear-gradient(135deg,#dbeafe,#e0f2fe)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 800,
+                color: "#0f172a",
+                flexShrink: 0,
               }}
-              style={S.accountCard}
             >
+              {acc.displayName.charAt(0).toUpperCase()}
+            </div>
+
+            <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
               <div
                 style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 16,
-                  background: "linear-gradient(135deg,#dbeafe,#e0f2fe)",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 800,
-                  color: "#0f172a",
+                  gap: 8,
+                  fontWeight: 700,
+                  minWidth: 0,
                 }}
               >
-                {acc.displayName.charAt(0).toUpperCase()}
-              </div>
-
-              <div style={{ flex: 1, textAlign: "left" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700 }}>
+                <span
+                  style={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {acc.displayName}
-                  {acc.role === "owner" ? (
-                    <Crown size={15} color="#d97706" />
-                  ) : (
-                    <Briefcase size={15} color="#2563eb" />
-                  )}
-                </div>
-                <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{acc.phone}</div>
-                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
-                  {acc.businessName}
-                </div>
+                </span>
+
+                {acc.role === "owner" ? (
+                  <Crown size={15} color="#d97706" />
+                ) : (
+                  <Briefcase size={15} color="#2563eb" />
+                )}
               </div>
 
-              <button
-                type="button"
-                onClick={(e) => removeRememberedAccount(acc.phone, e)}
+              <div
                 style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "#94a3b8",
-                  padding: 4,
+                  fontSize: 13,
+                  color: "#64748b",
+                  marginTop: 2,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
-                <X size={18} />
-              </button>
+                {acc.phone}
+              </div>
+
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#94a3b8",
+                  marginTop: 4,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {acc.businessName}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              aria-label={`Remove ${acc.displayName}`}
+              onClick={(e) => removeRememberedAccount(acc.phone, e)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#94a3b8",
+                padding: 6,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <X size={18} />
             </button>
-          ))}
+          </div>
+        ))}
 
-          <button type="button" style={S.btn("outline")} onClick={() => setScreen("login_phone")}>
-            <Plus size={18} />
-            {t("auth.addAnotherAccount")}
-          </button>
+        <button type="button" style={S.btn("outline")} onClick={() => setScreen("login_phone")}>
+          <Plus size={18} />
+          {t("auth.addAnotherAccount")}
+        </button>
 
-          <button type="button" style={S.btn("ghost")} onClick={() => setScreen("register")}>
-            {t("auth.createNewOwner")}
-          </button>
-        </div>
+        <button type="button" style={S.btn("ghost")} onClick={() => setScreen("register")}>
+          {t("auth.createNewOwner")}
+        </button>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   if (screen === "login_phone") {
     return (

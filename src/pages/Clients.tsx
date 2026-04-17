@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import AppShell from "@/components/layout/AppShell";
 
 interface Client {
   id: string;
@@ -225,175 +226,172 @@ const ClientsPage = () => {
     }
   };
 
-  if (!isOwner) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-muted to-background p-6">
-        <div className="max-w-md rounded-3xl bg-white p-8 text-center shadow-xl">
-          <h1 className="mb-3 text-xl font-bold">{t("settings.accessRestricted")}</h1>
-          <p className="mb-6 text-sm text-slate-600">{t("clients.noPermission")}</p>
-          <Button onClick={() => navigate("/dashboard")} className="w-full">
-            {t("clients.backToDashboard")}
+ if (!isOwner) {
+  return (
+    <AppShell
+      title={t("clients.title")}
+      subtitle={t("clients.subtitle")}
+      showBack
+      showHome
+      contentClassName="pt-2 md:pt-3"
+    >
+      <div className="mx-auto max-w-md rounded-[24px] bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+        <h1 className="mb-3 text-xl font-bold">{t("settings.accessRestricted")}</h1>
+        <p className="mb-6 text-sm text-slate-600">{t("clients.noPermission")}</p>
+        <Button onClick={() => navigate("/dashboard")} className="h-11 w-full rounded-2xl">
+          {t("clients.backToDashboard")}
+        </Button>
+      </div>
+    </AppShell>
+  );
+}
+return (
+  <AppShell
+    title={t("clients.title")}
+    subtitle={t("clients.subtitle")}
+    showBack
+    showHome
+    contentClassName="pt-2 md:pt-3"
+  >
+    <div className="mx-auto w-full max-w-5xl space-y-4">
+      <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
+          <UserPlus size={18} className="text-primary" />
+          {t("clients.addCustomer")}
+        </h2>
+
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="name" className="mb-1.5 block text-sm font-medium">
+              <User size={14} className="mr-1 inline" />
+              {t("clients.customerName")} *
+            </Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("clients.customerNamePlaceholder")}
+              className="h-12 rounded-2xl bg-white text-base"
+              autoComplete="off"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="phone" className="mb-1.5 block text-sm font-medium">
+              <Phone size={14} className="mr-1 inline" />
+              {t("clients.phoneNumber")}
+            </Label>
+            <Input
+              id="phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder={t("clients.phonePlaceholder")}
+              className="h-12 rounded-2xl bg-white text-base"
+              inputMode="tel"
+              autoComplete="off"
+            />
+          </div>
+
+          <Button
+            onClick={handleSave}
+            disabled={isSaving || !name.trim()}
+            className="h-12 w-full rounded-2xl text-base"
+          >
+            {isSaving ? (
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-foreground/30 border-t-foreground" />
+            ) : (
+              <>
+                <UserPlus size={18} className="mr-2" />
+                {t("clients.saveCustomer")}
+              </>
+            )}
           </Button>
         </div>
       </div>
-    );
-  }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted to-background">
-      <header className="glass-card sticky top-0 z-50 rounded-none border-x-0 border-t-0 px-4 py-3">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted"
-          >
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <h1 className="text-base font-bold text-foreground">{t("clients.title")}</h1>
-            <p className="text-[10px] text-muted-foreground">{t("clients.subtitle")}</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-lg space-y-6 p-4 pb-8 animate-fade-in">
-        <div className="glass-card p-5 animate-fade-in">
-          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
-            <UserPlus size={18} className="text-primary" />
-            {t("clients.addCustomer")}
-          </h2>
-
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="name" className="mb-1.5 block text-sm font-medium">
-                <User size={14} className="mr-1 inline" />
-                {t("clients.customerName")} *
-              </Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t("clients.customerNamePlaceholder")}
-                className="input-glow h-12 bg-white/50 text-base"
-                autoComplete="off"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="phone" className="mb-1.5 block text-sm font-medium">
-                <Phone size={14} className="mr-1 inline" />
-                {t("clients.phoneNumber")}
-              </Label>
-              <Input
-                id="phone"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder={t("clients.phonePlaceholder")}
-                className="input-glow h-12 bg-white/50 text-base"
-                inputMode="tel"
-                autoComplete="off"
-              />
-            </div>
-
-            <Button
-              onClick={handleSave}
-              disabled={isSaving || !name.trim()}
-              className="btn-gold h-12 w-full text-base"
-            >
-              {isSaving ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-foreground/30 border-t-foreground" />
-              ) : (
-                <>
-                  <UserPlus size={18} className="mr-2" />
-                  {t("clients.saveCustomer")}
-                </>
-              )}
-            </Button>
+      <div className="space-y-3">
+        <div className="rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
+          <div className="relative">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`${t("common.search")}...`}
+              className="rounded-2xl pl-10"
+            />
           </div>
         </div>
 
-        <div className="space-y-3">
-          <div className="glass-card p-3">
-            <div className="relative">
-              <Search
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={`${t("common.search")}...`}
-                className="pl-10"
-              />
-            </div>
+        <h2 className="text-sm font-semibold text-slate-500">
+          {t("clients.allCustomers")} ({filteredClients.length})
+        </h2>
+
+        {isLoading ? (
+          <div className="rounded-[24px] bg-white py-8 text-center shadow-sm ring-1 ring-slate-200">
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
           </div>
-
-          <h2 className="text-sm font-semibold text-muted-foreground">
-            {t("clients.allCustomers")} ({filteredClients.length})
-          </h2>
-
-          {isLoading ? (
-            <div className="py-8 text-center">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-            </div>
-          ) : filteredClients.length === 0 ? (
-            <div className="glass-card p-8 text-center">
-              <User size={32} className="mx-auto mb-3 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">{t("clients.noCustomers")}</p>
-              <p className="mt-1 text-xs text-muted-foreground/70">
-                {t("clients.firstCustomerHint")}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {filteredClients.map((client) => (
-                <div
-                  key={client.id}
-                  className="glass-card flex items-center justify-between p-4 animate-fade-in"
-                >
-                  <div className="flex items-center gap-3">
-                    {client.image_url ? (
-                      <img
-                        src={client.image_url}
-                        alt={client.name}
-                        className="h-10 w-10 rounded-full border object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                        <User size={18} className="text-primary" />
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="text-sm font-medium">{client.name}</p>
-                      {client.phone && (
-                        <a
-                          href={`tel:${client.phone}`}
-                          className="flex items-center gap-1 text-xs text-primary"
-                        >
-                          <Phone size={10} />
-                          {client.phone}
-                        </a>
-                      )}
+        ) : filteredClients.length === 0 ? (
+          <div className="rounded-[24px] bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+            <User size={32} className="mx-auto mb-3 text-slate-400/60" />
+            <p className="text-sm text-slate-500">{t("clients.noCustomers")}</p>
+            <p className="mt-1 text-xs text-slate-400">
+              {t("clients.firstCustomerHint")}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {filteredClients.map((client) => (
+              <div
+                key={client.id}
+                className="flex items-center justify-between rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  {client.image_url ? (
+                    <img
+                      src={client.image_url}
+                      alt={client.name}
+                      className="h-10 w-10 rounded-full border object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                      <User size={18} className="text-primary" />
                     </div>
-                  </div>
+                  )}
 
-                  <button
-                    onClick={() => handleDelete(client)}
-                    className="p-2 text-muted-foreground transition-colors hover:text-destructive"
-                    title={t("common.delete")}
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{client.name}</p>
+                    {client.phone && (
+                      <a
+                        href={`tel:${client.phone}`}
+                        className="flex items-center gap-1 text-xs text-primary"
+                      >
+                        <Phone size={10} />
+                        {client.phone}
+                      </a>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </main>
+
+                <button
+                  type="button"
+                  onClick={() => handleDelete(client)}
+                  className="p-2 text-slate-400 transition-colors hover:text-destructive"
+                  title={t("common.delete")}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
-  );
+  </AppShell>
+);
 };
 
 export default ClientsPage;

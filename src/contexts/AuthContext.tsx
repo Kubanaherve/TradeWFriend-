@@ -59,9 +59,9 @@ type AuthContextType = {
   removeAccount: (phone: string) => void;
 
   hasRole: (role: UserRole | UserRole[]) => boolean;
-
   verifyPin: (pin: string) => Promise<"success" | "wrong">;
 
+  // compatibility helpers
   loginWithPin: (phone: string, pin: string) => Promise<LoginResult>;
   loginLocal: () => void;
   saveAccount: () => void;
@@ -101,21 +101,136 @@ export const isValidRwandaPhone = (value: string) => {
 
 export const isValidPin = (pin: string) => /^\d{6}$/.test(pin);
 
-async function hashPin(pin: string, phone: string) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(`${normalizePhone(phone)}:${pin}`);
-  const digest = await crypto.subtle.digest("SHA-256", data);
+function rightRotate(value: number, amount: number) {
+  return (value >>> amount) | (value << (32 - amount));
+}
 
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+function sha256PureJs(ascii: string): string {
+  const mathPow = Math.pow;
+  const maxWord = mathPow(2, 32);
+  const lengthProperty = "length";
+
+  let i: number;
+  let j: number;
+  const result: string[] = [];
+
+  const words: number[] = [];
+  const asciiBitLength = ascii[lengthProperty] * 8;
+
+  const hash: number[] = [];
+  const k: number[] = [];
+  let primeCounter = 0;
+
+  const isComposite: Record<number, boolean> = {};
+
+  for (let candidate = 2; primeCounter < 64; candidate++) {
+    if (!isComposite[candidate]) {
+      for (i = 0; i < 313; i += candidate) {
+        isComposite[i + candidate] = true;
+      }
+      hash[primeCounter] = (mathPow(candidate, 0.5) * maxWord) | 0;
+      k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+    }
+  }
+
+  const asciiBytes: number[] = [];
+  for (i = 0; i < ascii[lengthProperty]; i++) {
+    j = ascii.charCodeAt(i);
+
+    if (j < 0x80) {
+      asciiBytes.push(j);
+    } else if (j < 0x800) {
+      asciiBytes.push(0xc0 | (j >> 6), 0x80 | (j & 0x3f));
+    } else if (j < 0xd800 || j >= 0xe000) {
+      asciiBytes.push(0xe0 | (j >> 12), 0x80 | ((j >> 6) & 0x3f), 0x80 | (j & 0x3f));
+    } else {
+      i++;
+      const surrogatePair =
+        0x10000 + (((j & 0x3ff) << 10) | (ascii.charCodeAt(i) & 0x3ff));
+      asciiBytes.push(
+        0xf0 | (surrogatePair >> 18),
+        0x80 | ((surrogatePair >> 12) & 0x3f),
+        0x80 | ((surrogatePair >> 6) & 0x3f),
+        0x80 | (surrogatePair & 0x3f)
+      );
+    }
+  }
+
+  const byteLength = asciiBytes.length;
+  const bitLength = byteLength * 8;
+
+  for (i = 0; i < byteLength; i++) {
+    words[i >> 2] |= asciiBytes[i] << (24 - (i % 4) * 8);
+  }
+
+  words[bitLength >> 5] |= 0x80 << (24 - (bitLength % 32));
+  words[(((bitLength + 64) >> 9) << 4) + 15] = bitLength;
+
+  for (j = 0; j < words[lengthProperty]; ) {
+    const w = words.slice(j, (j += 16));
+    const oldHash = hash.slice(0);
+
+    for (i = 0; i < 64; i++) {
+      const w15 = w[i - 15];
+      const w2 = w[i - 2];
+
+      const a = hash[0];
+      const e = hash[4];
+
+      const temp1 =
+        hash[7] +
+        (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) +
+        ((e & hash[5]) ^ (~e & hash[6])) +
+        k[i] +
+        (w[i] =
+          i < 16
+            ? w[i]
+            : (((w[i - 16] +
+                (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) +
+                w[i - 7] +
+                (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))) |
+                0)));
+
+      const temp2 =
+        (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) +
+        ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+
+      hash[7] = hash[6];
+      hash[6] = hash[5];
+      hash[5] = hash[4];
+      hash[4] = (hash[3] + temp1) | 0;
+      hash[3] = hash[2];
+      hash[2] = hash[1];
+      hash[1] = hash[0];
+      hash[0] = (temp1 + temp2) | 0;
+    }
+
+    for (i = 0; i < 8; i++) {
+      hash[i] = (hash[i] + oldHash[i]) | 0;
+    }
+  }
+
+  for (i = 0; i < 8; i++) {
+    for (j = 3; j + 1; j--) {
+      const b = (hash[i] >> (j * 8)) & 255;
+      result.push((b < 16 ? "0" : "") + b.toString(16));
+    }
+  }
+
+  return result.join("");
+}
+
+async function hashPin(pin: string, phone: string) {
+  const raw = `${normalizePhone(phone)}:${pin}`;
+  return sha256PureJs(raw);
 }
 
 function readRememberedAccounts(): RememberedAccount[] {
   try {
     const raw = localStorage.getItem(REMEMBERED_ACCOUNTS_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as RememberedAccount[];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as RememberedAccount[]) : [];
   } catch {
     localStorage.removeItem(REMEMBERED_ACCOUNTS_KEY);
     return [];
@@ -130,7 +245,6 @@ function upsertRememberedAccount(account: RememberedAccount) {
   const existing = readRememberedAccounts().filter(
     (item) => normalizePhone(item.phone) !== normalizePhone(account.phone)
   );
-
   const next = [account, ...existing].slice(0, 10);
   saveRememberedAccounts(next);
 }
@@ -194,7 +308,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!savedSession?.phone) {
           setProfile(null);
-          setIsLoading(false);
           return;
         }
 
@@ -203,12 +316,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!latest || !latest.isActive) {
           clearActiveSession();
           setProfile(null);
-          setIsLoading(false);
           return;
         }
 
         setProfile(latest);
-      } catch {
+      } catch (error) {
+        console.error("Auth boot error:", error);
         clearActiveSession();
         setProfile(null);
       } finally {
@@ -223,15 +336,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const activePhone = profile?.phone;
     if (!activePhone) return;
 
-    const latest = await getAccountByPhone(activePhone);
+    try {
+      const latest = await getAccountByPhone(activePhone);
 
-    if (!latest || !latest.isActive) {
-      clearActiveSession();
-      setProfile(null);
-      return;
+      if (!latest || !latest.isActive) {
+        clearActiveSession();
+        setProfile(null);
+        return;
+      }
+
+      setProfile(latest);
+    } catch (error) {
+      console.error("Refresh profile error:", error);
     }
-
-    setProfile(latest);
   }, [profile?.phone]);
 
   const signUpOwner = useCallback(
@@ -241,111 +358,119 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       pin: string;
       businessName: string;
     }): Promise<SignUpResult> => {
-      const displayName = input.displayName.trim();
-      const businessName = input.businessName.trim();
-      const phone = normalizePhone(input.phone);
-      const pin = input.pin.trim();
+      try {
+        const displayName = input.displayName.trim();
+        const businessName = input.businessName.trim();
+        const phone = normalizePhone(input.phone);
+        const pin = input.pin.trim();
 
-      if (!displayName) {
-        return { ok: false, error: "Izina rirakenewe." };
+        if (!displayName) {
+          return { ok: false, error: "Izina rirakenewe." };
+        }
+
+        if (!businessName) {
+          return { ok: false, error: "Izina ry'ubucuruzi rirakenewe." };
+        }
+
+        if (!isValidRwandaPhone(phone)) {
+          return { ok: false, error: "Andika nimero ya telefone y'u Rwanda neza." };
+        }
+
+        if (!isValidPin(pin)) {
+          return { ok: false, error: "PIN igomba kuba imibare 6." };
+        }
+
+        const existing = await getAccountByPhone(phone);
+        if (existing) {
+          return { ok: false, error: "Iyi nimero isanzwe ifite konti." };
+        }
+
+        const pinHash = await hashPin(pin, phone);
+
+        const payload = {
+          display_name: displayName,
+          phone,
+          pin_hash: pinHash,
+          business_name: businessName,
+          created_by: phone,
+          role: "owner",
+          is_active: true,
+        };
+
+        const { data, error } = await supabase
+          .from("employees")
+          .insert(payload as any)
+          .select("*")
+          .single();
+
+        if (error || !data) {
+          return { ok: false, error: error?.message ?? "Konti ya owner ntiyakozwe." };
+        }
+
+        const nextProfile = mapEmployeeRowToProfile(data);
+
+        saveActiveSession(nextProfile.phone);
+        upsertRememberedAccount({
+          phone: nextProfile.phone,
+          displayName: nextProfile.displayName,
+          businessName: nextProfile.businessName,
+          role: nextProfile.role,
+          createdAt: nextProfile.createdAt,
+        });
+
+        setProfile(nextProfile);
+        return { ok: true };
+      } catch (error) {
+        console.error("signUpOwner error:", error);
+        return { ok: false, error: "Habaye ikibazo mu gukora konti." };
       }
-
-      if (!businessName) {
-        return { ok: false, error: "Izina ry'ubucuruzi rirakenewe." };
-      }
-
-      if (!isValidRwandaPhone(phone)) {
-        return { ok: false, error: "Andika nimero ya telefone y'u Rwanda neza." };
-      }
-
-      if (!isValidPin(pin)) {
-        return { ok: false, error: "PIN igomba kuba imibare 6." };
-      }
-
-      const existing = await getAccountByPhone(phone);
-      if (existing) {
-        return { ok: false, error: "Iyi nimero isanzwe ifite konti." };
-      }
-
-      const pinHash = await hashPin(pin, phone);
-
-      const payload = {
-        display_name: displayName,
-        phone,
-        pin_hash: pinHash,
-        business_name: businessName,
-        created_by: phone,
-        role: "owner",
-        is_active: true,
-      };
-
-      const { data, error } = await supabase
-        .from("employees")
-        .insert(payload as any)
-        .select("*")
-        .single();
-
-      if (error || !data) {
-        return { ok: false, error: error?.message ?? "Konti ya owner ntiyakozwe." };
-      }
-
-      const nextProfile = mapEmployeeRowToProfile(data);
-
-      saveActiveSession(nextProfile.phone);
-
-      upsertRememberedAccount({
-        phone: nextProfile.phone,
-        displayName: nextProfile.displayName,
-        businessName: nextProfile.businessName,
-        role: nextProfile.role,
-        createdAt: nextProfile.createdAt,
-      });
-
-      setProfile(nextProfile);
-      return { ok: true };
     },
     []
   );
 
   const signInWithPhonePin = useCallback(
     async (phone: string, pin: string): Promise<LoginResult> => {
-      const normalizedPhone = normalizePhone(phone);
+      try {
+        const normalizedPhone = normalizePhone(phone);
 
-      if (!isValidRwandaPhone(normalizedPhone) || !isValidPin(pin)) {
-        return "wrong";
+        if (!isValidRwandaPhone(normalizedPhone) || !isValidPin(pin)) {
+          return "wrong";
+        }
+
+        const { data, error } = await supabase
+          .from("employees")
+          .select("*")
+          .eq("phone", normalizedPhone)
+          .maybeSingle();
+
+        if (error || !data) return "not_found";
+
+        const account = mapEmployeeRowToProfile(data);
+
+        if (!account.isActive) return "inactive";
+
+        const expectedHash = data.pin_hash;
+        const actualHash = await hashPin(pin, normalizedPhone);
+
+        if (expectedHash !== actualHash) {
+          return "wrong";
+        }
+
+        saveActiveSession(account.phone);
+        upsertRememberedAccount({
+          phone: account.phone,
+          displayName: account.displayName,
+          businessName: account.businessName,
+          role: account.role,
+          createdAt: account.createdAt,
+        });
+
+        setProfile(account);
+        return "success";
+      } catch (error) {
+        console.error("signInWithPhonePin error:", error);
+        return "not_found";
       }
-
-      const { data, error } = await supabase
-        .from("employees")
-        .select("*")
-        .eq("phone", normalizedPhone)
-        .maybeSingle();
-
-      if (error || !data) return "not_found";
-
-      const account = mapEmployeeRowToProfile(data);
-
-      if (!account.isActive) return "inactive";
-
-      const expectedHash = data.pin_hash;
-      const actualHash = await hashPin(pin, normalizedPhone);
-
-      if (expectedHash !== actualHash) {
-        return "wrong";
-      }
-
-      saveActiveSession(account.phone);
-
-      upsertRememberedAccount({
-        phone: account.phone,
-        displayName: account.displayName,
-        businessName: account.businessName,
-        role: account.role,
-        createdAt: account.createdAt,
-      });
-
-      setProfile(account);
-      return "success";
     },
     []
   );

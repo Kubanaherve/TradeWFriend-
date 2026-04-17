@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Trash2,
   Plus,
   Camera,
@@ -13,6 +12,7 @@ import {
   Boxes,
   TrendingUp,
   Minus,
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/LanguageContext";
 import { formatCurrency } from "@/lib/kinyarwanda";
 import { toast } from "sonner";
+import AppShell from "@/components/layout/AppShell";
 
 interface InventoryItem {
   id: string;
@@ -352,258 +353,238 @@ const InventoryPage: React.FC = () => {
   const selectedItemValue = selectedItem
     ? selectedItem.quantity * selectedItem.cost_price
     : 0;
+return (
+  <AppShell
+    title={t("inventory.title")}
+    subtitle={t("inventory.subtitle")}
+    showBack
+    showHome
+    contentClassName="pt-2 md:pt-3"
+    headerRight={
+      isOwner ? (
+        <Button
+          className="h-9 rounded-xl px-4 text-sm font-semibold"
+          onClick={() => setShowAddForm((prev) => !prev)}
+        >
+          <Plus size={16} className="mr-2" />
+          {showAddForm ? t("common.close") : t("inventory.addItem")}
+        </Button>
+      ) : undefined
+    }
+  >
+    <div className="mx-auto w-full max-w-5xl space-y-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-2 flex items-center gap-2 text-slate-500">
+            <Boxes size={16} />
+            <span className="text-[11px] font-semibold uppercase tracking-wide">
+              {t("inventory.totalProducts")}
+            </span>
+          </div>
+          <p className="text-xl font-bold text-slate-900">{summary.totalItems}</p>
+        </div>
 
-  return (
-    <div
-      className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 text-slate-900"
-      style={{ fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}
-    >
-      <div className="pointer-events-none absolute -left-20 top-10 h-72 w-72 rounded-full bg-gradient-to-br from-indigo-300/35 to-transparent blur-3xl" />
-      <div className="pointer-events-none absolute right-0 top-32 h-80 w-80 rounded-full bg-gradient-to-br from-cyan-300/25 to-transparent blur-3xl" />
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-2 flex items-center gap-2 text-slate-500">
+            <Package size={16} />
+            <span className="text-[11px] font-semibold uppercase tracking-wide">
+              {t("inventory.totalUnits")}
+            </span>
+          </div>
+          <p className="text-xl font-bold text-slate-900">{summary.totalUnits}</p>
+        </div>
 
-      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/85 px-4 py-3 shadow-sm backdrop-blur-xl">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition-all hover:bg-slate-200 active:scale-95"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <div className="min-w-0">
-              <h1 className="truncate text-[15px] font-bold text-slate-900">
-                {t("inventory.title")}
-              </h1>
-              <p className="text-[11px] text-slate-500">{t("inventory.subtitle")}</p>
-            </div>
+        <div className="rounded-[24px] border border-red-100 bg-white p-4 shadow-sm">
+          <div className="mb-2 flex items-center gap-2 text-slate-500">
+            <AlertTriangle size={16} />
+            <span className="text-[11px] font-semibold uppercase tracking-wide">
+              {t("inventory.lowStock")}
+            </span>
+          </div>
+          <p className="text-xl font-bold text-red-600">{summary.lowStockCount}</p>
+        </div>
+
+        <div className="rounded-[24px] border border-emerald-100 bg-white p-4 shadow-sm">
+          <div className="mb-2 flex items-center gap-2 text-slate-500">
+            <TrendingUp size={16} />
+            <span className="text-[11px] font-semibold uppercase tracking-wide">
+              {t("inventory.totalStockValue")}
+            </span>
+          </div>
+          <p className="text-sm font-bold text-emerald-700 md:text-base">
+            {formatCurrency(summary.totalValue)}
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-[24px] border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+          <div className="relative">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`${t("common.search")}...`}
+              className="h-11 rounded-xl border-slate-200 pl-10 text-sm"
+            />
           </div>
 
-          {isOwner && (
-            <Button
-              className="h-10 rounded-xl px-4 text-sm font-semibold"
-              onClick={() => setShowAddForm((prev) => !prev)}
-            >
-              <Plus size={16} className="mr-2" />
-              {showAddForm ? t("common.close") : t("inventory.addItem")}
-            </Button>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none"
+          >
+            <option value="newest">{t("inventory.sortNewest")}</option>
+            <option value="name_asc">{t("inventory.sortNameAsc")}</option>
+            <option value="name_desc">{t("inventory.sortNameDesc")}</option>
+            <option value="qty_low">{t("inventory.sortQtyLow")}</option>
+            <option value="qty_high">{t("inventory.sortQtyHigh")}</option>
+            <option value="value_high">{t("inventory.sortValueHigh")}</option>
+          </select>
+        </div>
+      </div>
+
+      {showAddForm && isOwner && (
+        <div className="space-y-3 rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-bold text-slate-900">{t("inventory.addItem")}</h2>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <Input
+              placeholder={t("inventory.itemNamePlaceholder")}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className="h-11 rounded-xl border-slate-200 text-sm"
+            />
+            <Input
+              placeholder={t("inventory.quantity")}
+              type="number"
+              value={newQuantity}
+              onChange={(e) => setNewQuantity(e.target.value)}
+              className="h-11 rounded-xl border-slate-200 text-sm"
+            />
+            <Input
+              placeholder={t("inventory.costPrice")}
+              type="number"
+              value={newCost}
+              onChange={(e) => setNewCost(e.target.value)}
+              className="h-11 rounded-xl border-slate-200 text-sm"
+            />
+          </div>
+
+          <div className="flex items-center gap-3 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-3">
+            <Camera size={18} className="text-slate-400" />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => void handleFileUpload(e, "new")}
+              className="flex-1 text-xs text-slate-600"
+            />
+          </div>
+
+          {newImageUrl && (
+            <img
+              src={newImageUrl}
+              className="h-16 w-16 rounded-xl border object-cover"
+              alt="preview"
+            />
           )}
+
+          <Button
+            className="h-11 w-full rounded-xl text-sm font-semibold md:w-auto"
+            onClick={handleAddItem}
+            disabled={isAdding || uploading}
+          >
+            {isAdding ? t("common.saving") : t("inventory.confirmAdd")}
+          </Button>
         </div>
-      </header>
+      )}
 
-      <main className="mx-auto max-w-5xl space-y-4 px-4 py-4 pb-10">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="rounded-2xl border border-white/70 bg-white/90 p-4 shadow-sm">
-            <div className="mb-2 flex items-center gap-2 text-slate-500">
-              <Boxes size={16} />
-              <span className="text-[11px] font-semibold uppercase tracking-wide">
-                {t("inventory.totalProducts")}
-              </span>
-            </div>
-            <p className="text-xl font-bold text-slate-900">{summary.totalItems}</p>
-          </div>
-
-          <div className="rounded-2xl border border-white/70 bg-white/90 p-4 shadow-sm">
-            <div className="mb-2 flex items-center gap-2 text-slate-500">
-              <Package size={16} />
-              <span className="text-[11px] font-semibold uppercase tracking-wide">
-                {t("inventory.totalUnits")}
-              </span>
-            </div>
-            <p className="text-xl font-bold text-slate-900">{summary.totalUnits}</p>
-          </div>
-
-          <div className="rounded-2xl border border-red-100 bg-white/90 p-4 shadow-sm">
-            <div className="mb-2 flex items-center gap-2 text-slate-500">
-              <AlertTriangle size={16} />
-              <span className="text-[11px] font-semibold uppercase tracking-wide">
-                {t("inventory.lowStock")}
-              </span>
-            </div>
-            <p className="text-xl font-bold text-red-600">{summary.lowStockCount}</p>
-          </div>
-
-          <div className="rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm">
-            <div className="mb-2 flex items-center gap-2 text-slate-500">
-              <TrendingUp size={16} />
-              <span className="text-[11px] font-semibold uppercase tracking-wide">
-                {t("inventory.totalStockValue")}
-              </span>
-            </div>
-            <p className="text-sm font-bold text-emerald-700 md:text-base">
-              {formatCurrency(summary.totalValue)}
-            </p>
-          </div>
+      {isLoading ? (
+        <div className="flex justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
         </div>
-
-        <div className="rounded-2xl border border-white/70 bg-white/90 p-3 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-[1fr_220px]">
-            <div className="relative">
-              <Search
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={`${t("common.search")}...`}
-                className="h-11 rounded-xl border-slate-200 pl-10 text-sm"
-              />
-            </div>
-
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none"
-            >
-              <option value="newest">{t("inventory.sortNewest")}</option>
-              <option value="name_asc">{t("inventory.sortNameAsc")}</option>
-              <option value="name_desc">{t("inventory.sortNameDesc")}</option>
-              <option value="qty_low">{t("inventory.sortQtyLow")}</option>
-              <option value="qty_high">{t("inventory.sortQtyHigh")}</option>
-              <option value="value_high">{t("inventory.sortValueHigh")}</option>
-            </select>
-          </div>
+      ) : filteredItems.length === 0 ? (
+        <div className="rounded-[24px] border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <Package size={30} className="mx-auto mb-3 text-slate-300" />
+          <p className="text-sm text-slate-500">{t("inventory.noItems")}</p>
         </div>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {filteredItems.map((item) => {
+            const isLowStock = item.quantity <= LOW_STOCK_THRESHOLD;
+            const totalValue = item.quantity * item.cost_price;
 
-        {showAddForm && isOwner && (
-          <div className="space-y-3 rounded-2xl border border-white/70 bg-white/95 p-4 shadow-sm">
-            <h2 className="text-sm font-bold text-slate-900">{t("inventory.addItem")}</h2>
-
-            <div className="grid gap-3 md:grid-cols-3">
-              <Input
-                placeholder={t("inventory.itemNamePlaceholder")}
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                className="h-11 rounded-xl border-slate-200 text-sm"
-              />
-              <Input
-                placeholder={t("inventory.quantity")}
-                type="number"
-                value={newQuantity}
-                onChange={(e) => setNewQuantity(e.target.value)}
-                className="h-11 rounded-xl border-slate-200 text-sm"
-              />
-              <Input
-                placeholder={t("inventory.costPrice")}
-                type="number"
-                value={newCost}
-                onChange={(e) => setNewCost(e.target.value)}
-                className="h-11 rounded-xl border-slate-200 text-sm"
-              />
-            </div>
-
-            <div className="flex items-center gap-3 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-3">
-              <Camera size={18} className="text-slate-400" />
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => void handleFileUpload(e, "new")}
-                className="flex-1 text-xs text-slate-600"
-              />
-            </div>
-
-            {newImageUrl && (
-              <img
-                src={newImageUrl}
-                className="h-16 w-16 rounded-xl border object-cover"
-                alt="preview"
-              />
-            )}
-
-            <Button
-              className="h-11 w-full rounded-xl text-sm font-semibold md:w-auto"
-              onClick={handleAddItem}
-              disabled={isAdding || uploading}
-            >
-              {isAdding ? t("common.saving") : t("inventory.confirmAdd")}
-            </Button>
-          </div>
-        )}
-
-        {isLoading ? (
-          <div className="flex justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-          </div>
-        ) : filteredItems.length === 0 ? (
-          <div className="rounded-2xl border border-white/70 bg-white/90 p-8 text-center shadow-sm">
-            <Package size={30} className="mx-auto mb-3 text-slate-300" />
-            <p className="text-sm text-slate-500">{t("inventory.noItems")}</p>
-          </div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {filteredItems.map((item) => {
-              const isLowStock = item.quantity <= LOW_STOCK_THRESHOLD;
-              const totalValue = item.quantity * item.cost_price;
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => openItem(item)}
-                  className={`w-full rounded-2xl border p-3 text-left transition-all hover:shadow-md ${
-                    isLowStock
-                      ? "border-red-200 bg-red-50/50"
-                      : "border-white/70 bg-white/95 shadow-sm"
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                      {item.image_url ? (
-                        <img
-                          src={item.image_url}
-                          className="h-full w-full object-cover"
-                          alt={item.item_name}
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center">
-                          <Camera size={20} className="text-slate-300" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1 flex items-center gap-2">
-                        <h3 className="truncate text-[15px] font-bold text-slate-900">
-                          {item.item_name}
-                        </h3>
-                        {isLowStock && (
-                          <span className="rounded-full bg-red-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white">
-                            {t("inventory.lowStockBadge")}
-                          </span>
-                        )}
-                      </div>
-
-                      {isOwner && (
-                        <p className="text-[11px] font-bold uppercase tracking-wide text-purple-700">
-                          {t("inventory.costPrice")}: {formatCurrency(item.cost_price)}
-                        </p>
-                      )}
-
-                      <p
-                        className={`mt-1 text-xs font-extrabold ${
-                          isLowStock ? "text-red-600" : "text-blue-600"
-                        }`}
-                      >
-                        {t("inventory.remainingStock")}: {item.quantity}
-                      </p>
-
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        {t("inventory.totalStockValue")}: {formatCurrency(totalValue)}
-                      </p>
-                    </div>
-
-                    {isOwner && (
-                      <div className="text-slate-300">
-                        <Pencil size={18} />
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => openItem(item)}
+                className={`w-full rounded-[24px] border p-3 text-left transition-all hover:shadow-md ${
+                  isLowStock
+                    ? "border-red-200 bg-red-50/50"
+                    : "border-slate-200 bg-white shadow-sm"
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                    {item.image_url ? (
+                      <img
+                        src={item.image_url}
+                        className="h-full w-full object-cover"
+                        alt={item.item_name}
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <Camera size={20} className="text-slate-300" />
                       </div>
                     )}
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </main>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-center gap-2">
+                      <h3 className="truncate text-[15px] font-bold text-slate-900">
+                        {item.item_name}
+                      </h3>
+                      {isLowStock && (
+                        <span className="rounded-full bg-red-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white">
+                          {t("inventory.lowStockBadge")}
+                        </span>
+                      )}
+                    </div>
+
+                    {isOwner && (
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-purple-700">
+                        {t("inventory.costPrice")}: {formatCurrency(item.cost_price)}
+                      </p>
+                    )}
+
+                    <p
+                      className={`mt-1 text-xs font-extrabold ${
+                        isLowStock ? "text-red-600" : "text-blue-600"
+                      }`}
+                    >
+                      {t("inventory.remainingStock")}: {item.quantity}
+                    </p>
+
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      {t("inventory.totalStockValue")}: {formatCurrency(totalValue)}
+                    </p>
+                  </div>
+
+                  {isOwner && (
+                    <div className="text-slate-300">
+                      <Pencil size={18} />
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {selectedItem && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-4 sm:items-center">
@@ -633,6 +614,7 @@ const InventoryPage: React.FC = () => {
               </div>
 
               <button
+                type="button"
                 onClick={() => setSelectedItem(null)}
                 className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100"
               >
@@ -748,7 +730,8 @@ const InventoryPage: React.FC = () => {
         </div>
       )}
     </div>
-  );
+  </AppShell>
+);
 };
 
 export default InventoryPage;

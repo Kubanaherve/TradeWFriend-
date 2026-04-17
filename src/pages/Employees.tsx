@@ -21,6 +21,9 @@ import {
   isValidRwandaPhone,
 } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/LanguageContext";
+import AppShell from "@/components/layout/AppShell";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 type EmployeeRow = {
   id: string;
@@ -531,180 +534,153 @@ const Employees = () => {
     return null;
   }
 
-  return (
-    <div style={S.page}>
-      <div style={S.blob1} />
-      <div style={S.blob2} />
-
-      <div style={S.shell}>
-        <div style={S.header}>
-          <div style={S.headerRow}>
-            <div style={S.headerLeft}>
-              <button
-                type="button"
-                onClick={() => navigate("/settings")}
-                style={S.backBtn}
-              >
-                <ArrowLeft size={20} />
-              </button>
-
-              <div style={S.logoWrap}>
-                <img
-                  src={logo}
-                  alt="TradeWFriend+"
-                  style={{ width: 24, height: 24, objectFit: "contain" }}
-                />
-              </div>
-
-              <div style={{ minWidth: 0 }}>
-                <div style={S.headerTitle}>{t("employees.title")}</div>
-                <div style={S.headerSub}>{t("employees.subtitle")}</div>
-              </div>
-            </div>
-          </div>
+return (
+  <AppShell
+    title={t("employees.title")}
+    subtitle={t("employees.subtitle")}
+    showBack
+    showHome
+    contentClassName="pt-2 md:pt-3"
+  >
+    <div className="mx-auto w-full max-w-5xl space-y-4">
+      
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-[20px] bg-white p-4 shadow-sm border">
+          <p className="text-[11px] font-semibold uppercase text-slate-500">
+            {t("employees.totalEmployees")}
+          </p>
+          <p className="text-2xl font-bold text-slate-900 mt-2">
+            {employees.length}
+          </p>
         </div>
 
-        <div style={S.grid}>
-          <div style={S.summaryGrid}>
-            <div style={S.summaryCard}>
-              <div style={S.summaryLabel}>{t("employees.totalEmployees")}</div>
-              <div style={S.summaryValue}>{employees.length}</div>
-            </div>
-            <div style={S.summaryCard}>
-              <div style={S.summaryLabel}>{t("employees.activeEmployees")}</div>
-              <div style={{ ...S.summaryValue, color: "#047857" }}>{activeCount}</div>
-            </div>
-          </div>
-
-          <div style={S.card}>
-            <div style={S.sectionTitle}>
-              <UserPlus size={16} color="#2563eb" />
-              {t("employees.addEmployee")}
-            </div>
-            <div style={S.sectionText}>
-              {t("employees.addEmployeeHelp")}
-            </div>
-
-            <div style={S.formGrid}>
-              <div>
-                <label style={S.label}>{t("employees.employeeName")}</label>
-                <input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder={t("employees.employeeNamePlaceholder")}
-                  style={S.input}
-                  onFocus={focusStyle}
-                  onBlur={blurStyle}
-                />
-              </div>
-
-              <div>
-                <label style={S.label}>{t("auth.phoneNumber")}</label>
-                <input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder={t("auth.phonePlaceholder")}
-                  style={S.input}
-                  onFocus={focusStyle}
-                  onBlur={blurStyle}
-                />
-              </div>
-
-              <div>
-                <label style={S.label}>{t("auth.setPin")}</label>
-                <input
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder={t("employees.pinPlaceholder")}
-                  style={S.input}
-                  onFocus={focusStyle}
-                  onBlur={blurStyle}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginTop: 14 }}>
-              <button
-                type="button"
-                style={S.btnPrimary}
-                onClick={handleAddEmployee}
-                disabled={saving}
-              >
-                <Plus size={18} />
-                {saving ? t("common.saving") : t("employees.addEmployee")}
-              </button>
-            </div>
-          </div>
-
-          <div style={S.card}>
-            <div style={S.sectionTitle}>
-              <Users size={16} color="#0f172a" />
-              {t("employees.employeeList")}
-            </div>
-            <div style={S.sectionText}>
-              {t("employees.employeeListHelp")}
-            </div>
-
-            {employees.length === 0 ? (
-              <div style={S.emptyState}>{t("employees.noEmployees")}</div>
-            ) : (
-              employees.map((employee) => {
-                const active = employee.is_active !== false;
-                const initial = employee.display_name?.charAt(0)?.toUpperCase() || "E";
-
-                return (
-                  <div key={employee.id} style={S.employeeCard}>
-                    <div style={S.employeeRow}>
-                      <div style={S.employeeLeft}>
-                        <div style={S.avatar}>{initial}</div>
-
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <div style={S.employeeName}>{employee.display_name}</div>
-                            <Crown size={14} color="#2563eb" />
-                          </div>
-
-                          <div style={S.employeePhone}>
-                            <Phone size={12} />
-                            <span>{employee.phone}</span>
-                          </div>
-
-                          <div style={S.status(active)}>
-                            <ShieldCheck size={13} />
-                            {active ? t("employees.active") : t("employees.disabled")}
-                          </div>
-                        </div>
-                      </div>
-
-                      {active && (
-                        <button
-                          type="button"
-                          style={S.dangerBtn}
-                          onClick={() =>
-                            void handleDeactivateEmployee(employee.id, employee.display_name)
-                          }
-                          title={t("common.delete")}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+        <div className="rounded-[20px] bg-white p-4 shadow-sm border">
+          <p className="text-[11px] font-semibold uppercase text-slate-500">
+            {t("employees.activeEmployees")}
+          </p>
+          <p className="text-2xl font-bold text-green-600 mt-2">
+            {activeCount}
+          </p>
         </div>
       </div>
+
+      {/* ADD EMPLOYEE */}
+      <div className="rounded-[24px] bg-white p-5 shadow-sm border space-y-4">
+        <div>
+          <h2 className="text-sm font-bold flex items-center gap-2">
+            <UserPlus size={16} className="text-blue-600" />
+            {t("employees.addEmployee")}
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            {t("employees.addEmployeeHelp")}
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <Input
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder={t("employees.employeeNamePlaceholder")}
+          />
+
+          <Input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder={t("auth.phonePlaceholder")}
+          />
+
+          <Input
+            value={pin}
+            onChange={(e) =>
+              setPin(e.target.value.replace(/\D/g, "").slice(0, 6))
+            }
+            placeholder={t("employees.pinPlaceholder")}
+          />
+
+          <Button
+            onClick={handleAddEmployee}
+            disabled={saving}
+            className="w-full h-11"
+          >
+            {saving ? t("common.saving") : t("employees.addEmployee")}
+          </Button>
+        </div>
+      </div>
+
+      {/* EMPLOYEES LIST */}
+      <div className="rounded-[24px] bg-white p-5 shadow-sm border">
+        <h2 className="text-sm font-bold flex items-center gap-2 mb-3">
+          <Users size={16} />
+          {t("employees.employeeList")}
+        </h2>
+
+        {employees.length === 0 ? (
+          <div className="text-center text-sm text-slate-500 py-6">
+            {t("employees.noEmployees")}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {employees.map((employee) => {
+              const active = employee.is_active !== false;
+
+              return (
+                <div
+                  key={employee.id}
+                  className="flex items-center justify-between rounded-xl border p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">
+                      <User size={16} />
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-semibold">
+                        {employee.display_name}
+                      </p>
+                      <p className="text-xs text-slate-500 flex items-center gap-1">
+                        <Phone size={10} />
+                        {employee.phone}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                        active
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {active
+                        ? t("employees.active")
+                        : t("employees.disabled")}
+                    </span>
+
+                    {active && (
+                      <button
+                        onClick={() =>
+                          void handleDeactivateEmployee(
+                            employee.id,
+                            employee.display_name
+                          )
+                        }
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
     </div>
-  );
+  </AppShell>
+);
 };
 
 export default Employees;

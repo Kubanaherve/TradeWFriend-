@@ -6,10 +6,10 @@
       }
     },
     "android": {
-      "package": "com.tradewfriend.plus"
+      "package": "com.curuza.plus"
     },
     "ios": {
-      "bundleIdentifier": "com.tradewfriend.plus",
+      "bundleIdentifier": "com.curuza.plus",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }

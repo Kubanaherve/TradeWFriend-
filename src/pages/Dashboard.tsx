@@ -8,7 +8,7 @@ import AppShell from "@/components/layout/AppShell";
 import {
   Plus,
   List,
-  TrendingUp,
+  ShoppingCart,
   DollarSign,
   LogOut,
   Gem,
@@ -18,19 +18,32 @@ import {
   Settings,
   Bell,
   ShieldAlert,
+  BarChart2,
+  Wallet,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { ChangePinCard } from "@/components/ChangePinCard";
 import { formatCurrency } from "@/lib/kinyarwanda";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 interface DashboardStats {
-  totalSales: number;
-  totalDebt: number;
+  /** Cash sales (from sales table) */
+  totalCashSales: number;
+  /** Debt payments received */
   totalPayments: number;
+  /** totalCashSales + totalPayments — money actually collected */
+  totalRevenue: number;
+  /** Outstanding unpaid debt */
+  totalDebt: number;
+  /** Today: cash sales + debt payments */
   todayRevenue: number;
+  /** Today: new debt taken */
   todayDebt: number;
   totalCustomers: number;
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -41,9 +54,10 @@ const DashboardPage = () => {
   const isOwner = profile?.role === "owner";
 
   const [stats, setStats] = useState<DashboardStats>({
-    totalSales: 0,
-    totalDebt: 0,
+    totalCashSales: 0,
     totalPayments: 0,
+    totalRevenue: 0,
+    totalDebt: 0,
     todayRevenue: 0,
     todayDebt: 0,
     totalCustomers: 0,
@@ -54,23 +68,37 @@ const DashboardPage = () => {
 
   const todayDateKey = useMemo(() => new Date().toISOString().split("T")[0], []);
 
+  // ─── Fetch stats ────────────────────────────────────────────────────────────
+
   const fetchDashboardStats = useCallback(async () => {
     if (!isAuthenticated) return;
 
     setLoadingStats(true);
 
     try {
-      const [salesResponse, customersResponse, debtItemsResponse, debtPaymentsResponse] =
-        await Promise.all([
-          (supabase as any).from("sales").select("sale_price, quantity, created_at"),
-          (supabase as any).from("customers").select("id"),
-          (supabase as any).from("debt_items").select("total_price, date_taken"),
-          (supabase as any).from("debt_payments").select("amount_paid, paid_at"),
-        ]);
+      const [
+        salesResponse,
+        customersResponse,
+        debtItemsResponse,
+        debtPaymentsResponse,
+      ] = await Promise.all([
+        (supabase as any)
+          .from("sales")
+          .select("sale_price, quantity, created_at"),
+        (supabase as any)
+          .from("customers")
+          .select("id"),
+        (supabase as any)
+          .from("debt_items")
+          .select("total_price, date_taken"),
+        (supabase as any)
+          .from("debt_payments")
+          .select("amount_paid, paid_at"),
+      ]);
 
-      if (salesResponse.error) throw salesResponse.error;
-      if (customersResponse.error) throw customersResponse.error;
-      if (debtItemsResponse.error) throw debtItemsResponse.error;
+      if (salesResponse.error)      throw salesResponse.error;
+      if (customersResponse.error)  throw customersResponse.error;
+      if (debtItemsResponse.error)  throw debtItemsResponse.error;
       if (debtPaymentsResponse.error) throw debtPaymentsResponse.error;
 
       const sales = (salesResponse.data ?? []) as Array<{
@@ -91,38 +119,54 @@ const DashboardPage = () => {
         paid_at: string;
       }>;
 
-      const totalSales = sales.reduce(
-        (sum, sale) => sum + (Number(sale.sale_price) || 0) * (Number(sale.quantity) || 0),
+      // ── All-time cash sales (from new POS sales page)
+      const totalCashSales = sales.reduce(
+        (sum, s) => sum + (Number(s.sale_price) || 0) * (Number(s.quantity) || 0),
         0
       );
 
-      const todayRevenue = sales
-        .filter((sale) => sale.created_at?.startsWith(todayDateKey))
+      // ── Today's cash sales
+      const todayCashSales = sales
+        .filter((s) => s.created_at?.startsWith(todayDateKey))
         .reduce(
-          (sum, sale) => sum + (Number(sale.sale_price) || 0) * (Number(sale.quantity) || 0),
+          (sum, s) => sum + (Number(s.sale_price) || 0) * (Number(s.quantity) || 0),
           0
         );
 
-      const totalDebtGiven = debtItems.reduce(
-        (sum, item) => sum + (Number(item.total_price) || 0),
-        0
-      );
-
-      const todayDebt = debtItems
-        .filter((item) => item.date_taken?.startsWith(todayDateKey))
-        .reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
-
+      // ── All-time debt payments received
       const totalPayments = debtPayments.reduce(
-        (sum, payment) => sum + (Number(payment.amount_paid) || 0),
+        (sum, p) => sum + (Number(p.amount_paid) || 0),
         0
       );
 
+      // ── Today's debt payments received
+      const todayPayments = debtPayments
+        .filter((p) => p.paid_at?.startsWith(todayDateKey))
+        .reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0);
+
+      // ── Total revenue = cash sales + debt payments collected
+      const totalRevenue = totalCashSales + totalPayments;
+
+      // ── Today's total revenue = today's cash sales + today's payments
+      const todayRevenue = todayCashSales + todayPayments;
+
+      // ── Outstanding unpaid debt
+      const totalDebtGiven = debtItems.reduce(
+        (sum, i) => sum + (Number(i.total_price) || 0),
+        0
+      );
       const totalDebt = Math.max(totalDebtGiven - totalPayments, 0);
 
+      // ── Today's new debt taken
+      const todayDebt = debtItems
+        .filter((i) => i.date_taken?.startsWith(todayDateKey))
+        .reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
+
       setStats({
-        totalSales,
-        totalDebt,
+        totalCashSales,
         totalPayments,
+        totalRevenue,
+        totalDebt,
         todayRevenue,
         todayDebt,
         totalCustomers: customers.length,
@@ -134,51 +178,59 @@ const DashboardPage = () => {
     }
   }, [isAuthenticated, todayDateKey]);
 
+  // ─── Auth guard ─────────────────────────────────────────────────────────────
+
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate("/");
-    }
+    if (!authLoading && !isAuthenticated) navigate("/");
   }, [isAuthenticated, authLoading, navigate]);
+
+  // ─── Initial load ───────────────────────────────────────────────────────────
 
   useEffect(() => {
     void fetchDashboardStats();
   }, [fetchDashboardStats]);
 
+  // ─── Event listeners — refresh on any data change ──────────────────────────
+
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const refreshDashboard = () => {
+    const refresh = () => {
       setIsRefreshing(true);
       fetchDashboardStats().finally(() => setIsRefreshing(false));
     };
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        refreshDashboard();
-      }
+      if (document.visibilityState === "visible") refresh();
     };
 
-    window.addEventListener("paymentMade", refreshDashboard);
-    window.addEventListener("newDebtAdded", refreshDashboard);
-    window.addEventListener("debtDeleted", refreshDashboard);
-    window.addEventListener("clientDeleted", refreshDashboard);
-    window.addEventListener("focus", refreshDashboard);
+    window.addEventListener("paymentMade",       refresh);
+    window.addEventListener("newDebtAdded",       refresh);
+    window.addEventListener("debtDeleted",        refresh);
+    window.addEventListener("clientDeleted",      refresh);
+    window.addEventListener("newSaleRecorded",    refresh);  // ← new POS sales
+    window.addEventListener("focus",              refresh);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      window.removeEventListener("paymentMade", refreshDashboard);
-      window.removeEventListener("newDebtAdded", refreshDashboard);
-      window.removeEventListener("debtDeleted", refreshDashboard);
-      window.removeEventListener("clientDeleted", refreshDashboard);
-      window.removeEventListener("focus", refreshDashboard);
+      window.removeEventListener("paymentMade",       refresh);
+      window.removeEventListener("newDebtAdded",       refresh);
+      window.removeEventListener("debtDeleted",        refresh);
+      window.removeEventListener("clientDeleted",      refresh);
+      window.removeEventListener("newSaleRecorded",    refresh);
+      window.removeEventListener("focus",              refresh);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [isAuthenticated, fetchDashboardStats]);
+
+  // ─── Logout ─────────────────────────────────────────────────────────────────
 
   const handleLogout = async () => {
     await logout();
     navigate("/");
   };
+
+  // ─── Menu items ─────────────────────────────────────────────────────────────
 
   const menuItems = [
     {
@@ -198,12 +250,20 @@ const DashboardPage = () => {
       description: t("debts.title"),
     },
     {
-      icon: TrendingUp,
-      label: t("navigation.salesTracking"),
+      icon: ShoppingCart,
+      label: t("navigation.sales"),
       path: "/sales",
       bgClass: "from-navy-light to-primary",
       textClass: "text-white",
-      description: t("sales.title"),
+      description: t("sales.subtitle"),
+    },
+    {
+      icon: BarChart2,
+      label: t("navigation.reports"),
+      path: "/reports",
+      bgClass: "from-violet-600 to-indigo-700",
+      textClass: "text-white",
+      description: t("reports.subtitle"),
     },
     {
       icon: Package,
@@ -239,14 +299,18 @@ const DashboardPage = () => {
     },
   ];
 
+  // ─── Progress toward target (based on total revenue) ───────────────────────
+
   const progress =
     businessSettings.targetCapital && businessSettings.targetCapital > 0
-      ? Math.min((stats.totalSales / businessSettings.targetCapital) * 100, 100)
+      ? Math.min((stats.totalRevenue / businessSettings.targetCapital) * 100, 100)
       : 0;
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <AppShell
-      title={businessSettings.businessName || t("common.appName")}
+      title={profile?.businessName || "Business"}
       subtitle={`${t("dashboard.welcome")}, ${profile?.displayName || "User"}! 📊`}
       showBack={false}
       showHome={false}
@@ -274,12 +338,14 @@ const DashboardPage = () => {
       }
     >
       <div className="mx-auto w-full max-w-5xl space-y-4">
+
+        {/* ── Business identity strip ── */}
         <div className="flex justify-center pb-1">
           <div className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 ring-1 ring-slate-200">
             <img src={logo} alt={t("common.appName")} className="h-10 w-10 object-contain" />
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-slate-900">
-                {businessSettings.businessName || t("common.appName")}
+                {profile?.businessName || "Business"}
               </p>
               <p className="truncate text-xs text-slate-500">
                 {isOwner ? t("dashboard.ownerControl") : t("dashboard.employeeAccess")}
@@ -294,7 +360,10 @@ const DashboardPage = () => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {/* ── Stat cards ── */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
+              {/* Unpaid debt */}
               <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-red-100">
                 <div className="mb-2 flex items-center gap-2">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50">
@@ -309,6 +378,7 @@ const DashboardPage = () => {
                 </p>
               </div>
 
+              {/* Total customers */}
               <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
                 <div className="mb-2 flex items-center gap-2">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50">
@@ -321,20 +391,25 @@ const DashboardPage = () => {
                 <p className="text-xl font-bold text-blue-600">{stats.totalCustomers}</p>
               </div>
 
+              {/* Today's revenue (cash sales + debt payments) */}
               <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-green-100">
                 <div className="mb-2 flex items-center gap-2">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-50">
-                    <TrendingUp size={16} className="text-green-600" />
+                    <Wallet size={16} className="text-green-600" />
                   </div>
                   <span className="text-xs font-medium text-slate-500">
-                    {t("dashboard.todaySales")}
+                    {t("dashboard.todayRevenue")}
                   </span>
                 </div>
                 <p className="text-xl font-bold text-green-600">
                   {formatCurrency(stats.todayRevenue)}
                 </p>
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Sales + payments received
+                </p>
               </div>
 
+              {/* Today's new debt */}
               <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-rose-100">
                 <div className="mb-2 flex items-center gap-2">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50">
@@ -350,20 +425,63 @@ const DashboardPage = () => {
               </div>
             </div>
 
-            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-blue-100">
-              <div className="mb-2 flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50">
-                  <TrendingUp size={16} className="text-blue-600" />
+            {/* ── Total revenue breakdown card ── */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {/* Total revenue */}
+              <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-green-100">
+                <div className="mb-2 flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-50">
+                    <Wallet size={16} className="text-green-600" />
+                  </div>
+                  <span className="text-xs font-medium text-slate-500">
+                    Total Revenue
+                  </span>
                 </div>
-                <span className="text-xs font-medium text-slate-500">
-                  {t("dashboard.totalSales")}
-                </span>
+                <p className="text-2xl font-bold text-green-700">
+                  {formatCurrency(stats.totalRevenue)}
+                </p>
+                {/* Breakdown */}
+                <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-3">
+                  <div className="flex-1">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Cash Sales
+                    </p>
+                    <p className="text-sm font-bold text-slate-700">
+                      {formatCurrency(stats.totalCashSales)}
+                    </p>
+                  </div>
+                  <div className="h-8 w-px bg-slate-100" />
+                  <div className="flex-1">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Debt Collected
+                    </p>
+                    <p className="text-sm font-bold text-slate-700">
+                      {formatCurrency(stats.totalPayments)}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <p className="text-2xl font-bold text-blue-600">
-                {formatCurrency(stats.totalSales)}
-              </p>
+
+              {/* Outstanding unpaid (large) */}
+              <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-red-100">
+                <div className="mb-2 flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50">
+                    <DollarSign size={16} className="text-red-600" />
+                  </div>
+                  <span className="text-xs font-medium text-slate-500">
+                    {t("dashboard.totalUnpaid")}
+                  </span>
+                </div>
+                <p className="text-2xl font-bold text-red-600">
+                  {formatCurrency(stats.totalDebt)}
+                </p>
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Total debt taken − payments received
+                </p>
+              </div>
             </div>
 
+            {/* ── Target progress (uses total revenue) ── */}
             <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-indigo-950 via-indigo-900 to-violet-900 p-5 text-white shadow-xl">
               <div className="absolute inset-0 bg-gradient-to-r from-pink-500/15 via-purple-500/10 to-indigo-500/15" />
               <div className="relative z-10 flex items-start justify-between gap-4">
@@ -388,13 +506,13 @@ const DashboardPage = () => {
                     <div className="mt-2 flex flex-col gap-1 text-xs text-white/75 sm:flex-row sm:items-center sm:justify-between">
                       <span>
                         {businessSettings.targetCapital && businessSettings.targetCapital > 0
-                          ? `${progress.toFixed(1)}%`
+                          ? `${progress.toFixed(1)}% of target`
                           : t("dashboard.setTargetInSettings")}
                       </span>
                       <span>
                         {businessSettings.targetCapital && businessSettings.targetCapital > 0
                           ? `${t("dashboard.remaining")} ${formatCurrency(
-                              Math.max(businessSettings.targetCapital - stats.totalSales, 0)
+                              Math.max(businessSettings.targetCapital - stats.totalRevenue, 0)
                             )}`
                           : t("dashboard.addGoalInSettings")}
                       </span>
@@ -413,6 +531,7 @@ const DashboardPage = () => {
               </div>
             </div>
 
+            {/* ── Navigation menu grid ── */}
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               {menuItems.map((item, index) => (
                 <button
@@ -448,6 +567,7 @@ const DashboardPage = () => {
               ))}
             </div>
 
+            {/* ── Bottom section ── */}
             <div className="space-y-3 pt-1">
               <ChangePinCard />
 

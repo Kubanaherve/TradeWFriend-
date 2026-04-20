@@ -1,6 +1,6 @@
 import { PIN_LENGTH, normalizePhone, type LocalAccount } from "@/lib/auth";
 
-const REMEMBERED_ACCOUNTS_KEY = "tradewfriend_remembered_accounts_v1";
+const REMEMBERED_ACCOUNTS_KEY = "businessledger_remembered_accounts_v1";
 
 const readAccounts = (): LocalAccount[] => {
   try {

@@ -1,6 +1,3 @@
-import { Inbox } from "lucide-react";
-
-// Kinyarwanda labels dictionary
 export const labels = {
   // Auth & Navigation
   login: "Injira",
@@ -13,7 +10,7 @@ export const labels = {
   role: "Inshingano",
   owner: "Nyir'ubucuruzi",
   employee: "Umukozi",
-  
+
   // Dashboard
   dashboard: "Ibikubiye",
   addDebt: "Ongeraho Ideni",
@@ -28,15 +25,15 @@ export const labels = {
   totalProfit: "Inyungu yose",
   resetAll: "Tangira Bushya",
   resetSuccess: "Amafaranga yasubijwe kuri 0!",
-  
+
   // Customer & Debt Fields
   customerName: "Izina ry'umukiriya",
   phoneNumber: "Numero ya Telefone",
   itemsTaken: "Ibintu Byatwawe",
   amount: "Amafaranga",
-  dueDate: "Itariki yo Kwishyura",
+  dueDate: "Itariki yo kwishyura",
   dateTaken: "Itariki yo gufata",
-  paymentStatus: "Imiterere y'Ubwishyu",
+  paymentStatus: "Imiterere y'ubwishyu",
   willPayLater: "Azishyura nyuma",
   paid: "Yishyuye",
   unpaid: "Ntarishyura",
@@ -46,26 +43,26 @@ export const labels = {
   noDebts: "Nta deni rihari",
   totalDebt: "Ideni ryose",
   customers: "Abakiriya",
-  
+
   // Sales Fields
-  itemName: "Izina ry'Ikintu",
-  costPrice: "Igiciro cyo Kugura",
-  salePrice: "Igiciro cyo Kugurisha",
+  itemName: "Izina ry'ikintu",
+  costPrice: "Igiciro cyo kugura",
+  salePrice: "Igiciro cyo kugurisha",
   quantity: "Umubare",
   dateSold: "Itariki byagurishijweho",
   dateBought: "Itariki byaguzweho",
   totalSales: "Amafaranga yose yinjijwe",
   noSales: "Nta kintu cyagurishijwe",
-  
+
   // Actions
   save: "Emeza",
   cancel: "Bireke",
   delete: "Siba",
   edit: "Hindura",
   call: "Muhamagare",
-  sendMessage: "Mwohereze Ubutumwa",
+  sendMessage: "Mwohereze ubutumwa",
   markAsPaid: "Amaze kunyishyura",
-  remind: "Musobanurire",
+  remind: "Mwibutse",
   filter: "Tondeka",
   ok: "Ok",
   confirm: "Emeza",
@@ -73,7 +70,7 @@ export const labels = {
   back: "Subira inyuma",
   next: "Komeza",
   finish: "Soza",
-  
+
   // Placeholders
   customerNamePlaceholder: "Izina ry'umukiriya...",
   phonePlaceholder: "07X XXX XXXX",
@@ -81,11 +78,11 @@ export const labels = {
   quantityPlaceholder: "Umubare uri muri stock",
   costPricePlaceholder: "Igiciro cyo kugura",
   amountPlaceholder: "Andika amafaranga",
-  messagePlaceholder: "Murakoze cyane...",
+  messagePlaceholder: "Andika ubutumwa...",
   searchPlaceholder: "Shakisha...",
   businessNamePlaceholder: "Urugero: Chez Marie Shop",
   displayNamePlaceholder: "Urugero: Jeanne",
-  
+
   // Messages
   debtSavedSuccess: "Ideni ryashyizweho neza",
   saleSavedSuccess: "Icyagurishijwe cyashyizweho neza",
@@ -98,7 +95,7 @@ export const labels = {
   invalidPin: "PIN ntiyemera",
   accountLocked: "Konti irafunze",
   tryAgain: "Ongera ugerageze",
-  
+
   // Settings
   settings: "Igenamiterere",
   businessSettings: "Igenamiterere ry'ubucuruzi",
@@ -107,54 +104,67 @@ export const labels = {
   saveSettings: "Emeza igenamiterere",
   factoryReset: "Tangira bushya",
   factoryResetConfirm: "Ibi bizasiba amakuru yose",
-  
+
   // Inventory
-  takePhoto: "Kunan Ikintu",
-  selectFile: "Hitamo Ifoto",
+  takePhoto: "Fata ifoto",
+  selectFile: "Hitamo ifoto",
   imageUploaded: "Ifoto yashyizweho",
   imageUploadError: "Ifoto ntiyashyizweho",
   stock: "Stock",
   lowStock: "Stock nkeya",
   outOfStock: "Nta stock ihari",
-  
+
   // App Info
-  appName: "TradeWFriend+",
+  appName: "Curuza +",
   jewelryBusiness: "Ubucuruzi",
   smartBusinessManager: "Umuyobozi w'ubucuruzi w'intelligensiya",
+
+  // SMS Templates
+  smsTemplates: {
+    debtConfirmation:
+      "Muraho {customerName}. Murakoze kugura kuri {enterpriseName}. Mwafashe {items}. Amafaranga yose ni {amount} FRW{dueDatePart}. Murakoze.",
+
+    paymentThankYou:
+      "Muraho {customerName}. {enterpriseName} ibashimiye ko mwishyuye {amount} FRW. Murakoze ku bwizerane bwanyu.",
+
+    partialPaymentThankYou:
+      "Muraho {customerName}. Murakoze kwishyura {paidAmount} FRW kuri {enterpriseName}. Hasigaye {remainingAmount} FRW.",
+
+    paymentReminder:
+      "Muraho {customerName}. Turabibutsa ko musigayemo kwishyura {amount} FRW kuri {enterpriseName}{dueDatePart}. Murakoze.",
+
+    overdueReminder:
+      "Muraho {customerName}. Ubwishyu bwa {amount} FRW kuri {enterpriseName} buracyategerejwe. Turabasaba kubukora vuba. Murakoze.",
+
+    cashThankYou:
+      "Muraho {customerName}. Murakoze kugura {items} kuri {enterpriseName}. Mwishyuye {amount} FRW. Murakoze.",
+
+    generalThankYou:
+      "Muraho {customerName}. Murakoze gukorana na {enterpriseName}. Twishimiye kubakorera.",
+
+    paymentRequest:
+      "Muraho {customerName}. Murabwirwa ko hari ubwishyu bwa {amount} FRW bugitegerejwe kuri {enterpriseName}. Turabasaba kubwishyura vuba. Murakoze.",
+
+    dueDatePart: ". Itariki yo kwishyura ni {dueDate}",
+    noDueDatePart: "",
+  },
 } as const;
 
-// SMS message templates
-export const smsTemplates = {
-  // Immediate SMS after saving debt
-  debtConfirmation: (items: string, amount: string) => 
-    `Muraho, wampaye ${items}. Amafaranga muzishyura ni ${amount} FRW. Murakoze cyane!`,
-  
-  // Optional reminder SMS
-  debtReminder: (items: string, amount: string) => 
-    ` Muraho neza! Uzayishyura kuri ${items}. Merci!!
-  
-  Amafaranga totale ni: ${amount} FRW`,
-  
-  // Cash acknowledgment
-  cashAcknowledgment: () => 
-    `Muraho neza! Wampaye kuri cash nshuti. Merci!!`,
-};
-
-// Format currency in RWF
 export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('rw-RW', {
-    style: 'decimal',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount) + ' FRW';
+  return (
+    new Intl.NumberFormat("rw-RW", {
+      style: "decimal",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount) + " FRW"
+  );
 };
 
-// Format date in local format
 export const formatDate = (date: Date | string): string => {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleDateString('fr-RW', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("fr-RW", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   });
 };

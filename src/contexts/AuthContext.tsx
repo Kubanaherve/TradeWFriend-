@@ -220,7 +220,7 @@ function sha256PureJs(ascii: string): string {
   return result.join("");
 }
 
-async function hashPin(pin: string, phone: string) {
+export async function hashPin(pin: string, phone: string) {
   const raw = `${normalizePhone(phone)}:${pin}`;
   return sha256PureJs(raw);
 }

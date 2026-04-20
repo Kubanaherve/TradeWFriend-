@@ -19,7 +19,7 @@ export interface Transaction {
   metadata?: Record<string, unknown> | null;
 }
 
-const STORAGE_KEY = "tradewfriend_transactions_v2";
+const STORAGE_KEY = "businessledger_transactions_v2";
 
 const normalizeAmount = (value: unknown) => Number(value ?? 0) || 0;
 

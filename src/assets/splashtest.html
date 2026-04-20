@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Mate+ Intro</title>
+  <style>
+    :root {
+      --bg: #020202;
+      --white: #f5f5f7;
+      --muted: rgba(255,255,255,0.72);
+      --border: linear-gradient(135deg, #2fb8ff 0%, #7b4dff 28%, #f340a0 52%, #ff8a3d 76%, #ffd33d 100%);
+      --glow: 0 0 30px rgba(123, 77, 255, 0.22), 0 0 60px rgba(255, 168, 61, 0.18);
+      --ease: cubic-bezier(.2,.9,.2,1);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(47,184,255,0.08), transparent 28%),
+        radial-gradient(circle at 80% 25%, rgba(243,64,160,0.08), transparent 30%),
+        radial-gradient(circle at 60% 80%, rgba(255,211,61,0.07), transparent 28%),
+        #020202;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--white);
+    }
+
+    .noise,
+    .grid,
+    .scanline {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .noise {
+      opacity: 0.055;
+      background-image:
+        radial-gradient(circle at 25% 25%, rgba(255,255,255,.4) 0 1px, transparent 1px),
+        radial-gradient(circle at 75% 75%, rgba(255,255,255,.28) 0 1px, transparent 1px);
+      background-size: 14px 14px, 19px 19px;
+      mix-blend-mode: soft-light;
+      animation: drift 16s linear infinite;
+    }
+
+    .grid {
+      opacity: 0.08;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: radial-gradient(circle at center, black 45%, transparent 88%);
+    }
+
+    .scanline {
+      background: linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.03) 50%, transparent 100%);
+      transform: translateY(-100%);
+      animation: scan 5s linear infinite;
+      opacity: 0.45;
+    }
+
+    .stage {
+      position: relative;
+      width: min(92vw, 980px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 22px;
+      padding: 40px 24px;
+      z-index: 1;
+    }
+
+    .logo-shell {
+      position: relative;
+      width: min(88vw, 920px);
+      aspect-ratio: 2.62 / 1;
+      border-radius: 42px;
+      padding: 5px;
+      background: var(--border);
+      box-shadow: var(--glow);
+      opacity: 0;
+      transform: scale(0.82) translateY(28px);
+      animation: shellIn 900ms 120ms var(--ease) forwards;
+    }
+
+    .logo-shell::before {
+      content: "";
+      position: absolute;
+      inset: -18px;
+      border-radius: 54px;
+      background: conic-gradient(from 90deg, rgba(47,184,255,.18), rgba(123,77,255,.24), rgba(243,64,160,.18), rgba(255,211,61,.16), rgba(47,184,255,.18));
+      filter: blur(34px);
+      z-index: -1;
+      animation: halo 3.6s ease-in-out infinite;
+    }
+
+    .logo-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 38px;
+      background: rgba(0,0,0,0.96);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: clamp(16px, 2.8vw, 34px);
+      overflow: hidden;
+    }
+
+    .logo-inner::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(110deg, transparent 0%, rgba(255,255,255,0.07) 46%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.05) 54%, transparent 100%);
+      transform: translateX(-130%);
+      animation: sheen 1.45s 900ms var(--ease) forwards;
+    }
+
+    .friend {
+      font-weight: 900;
+      font-style: italic;
+      line-height: 0.92;
+      letter-spacing: -0.06em;
+      font-size: clamp(4rem, 12vw, 10rem);
+      color: #fff;
+      opacity: 0;
+      transform: translateX(-34px);
+      animation: textIn 700ms 420ms var(--ease) forwards;
+      text-shadow: 0 0 24px rgba(255,255,255,0.08);
+    }
+
+    .badge {
+      position: relative;
+      width: clamp(128px, 18vw, 240px);
+      aspect-ratio: 1 / 1;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 28%, #2fb8ff 0%, #7b4dff 30%, #ef43ab 54%, #ff973e 78%, #ffe033 100%);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 18px 34px rgba(0,0,0,0.45), 0 0 34px rgba(123,77,255,0.22);
+      opacity: 0;
+      transform: scale(0.65) rotate(-22deg);
+      animation: badgeIn 850ms 500ms var(--ease) forwards;
+    }
+
+    .badge::after {
+      content: "";
+      position: absolute;
+      inset: 12%;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.18);
+      opacity: 0.55;
+    }
+
+    .arrow {
+      position: relative;
+      width: 48%;
+      aspect-ratio: 1 / 1;
+      clip-path: polygon(0 50%, 58% 50%, 58% 18%, 100% 50%, 58% 82%, 58% 50%, 0 50%, 31% 19%, 46% 34%, 25% 50%, 46% 66%, 31% 81%);
+      background: #060606;
+      filter: drop-shadow(0 4px 14px rgba(0,0,0,0.22));
+    }
+
+    .arrow::before {
+      content: "";
+      position: absolute;
+      inset: -24%;
+      background-image: radial-gradient(circle, rgba(0,0,0,0.92) 0 1.7px, transparent 1.9px);
+      background-size: 9px 9px;
+      mask: radial-gradient(circle at center, black 55%, transparent 75%);
+      opacity: 0.95;
+    }
+
+    .brand-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .stock-line {
+      font-size: clamp(2rem, 5.7vw, 4.5rem);
+      font-weight: 900;
+      letter-spacing: -0.05em;
+      line-height: 1;
+      background: linear-gradient(135deg, #44c4ff 0%, #8750ff 24%, #ee45ad 48%, #ff9740 76%, #ffd83f 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 0 22px rgba(135,80,255,0.14);
+      opacity: 0;
+      transform: translateY(24px);
+      animation: riseFade 650ms 980ms var(--ease) forwards;
+      min-height: 1.15em;
+    }
+
+    .typed {
+      display: inline-block;
+      white-space: nowrap;
+      overflow: hidden;
+      border-right: 3px solid rgba(255,255,255,.88);
+      width: 0;
+      animation:
+        typing 1800ms 1120ms steps(11, end) forwards,
+        caret 850ms step-end infinite 1120ms;
+    }
+
+    .credit {
+      font-size: clamp(0.98rem, 1.9vw, 1.32rem);
+      color: var(--muted);
+      letter-spacing: 0.02em;
+      opacity: 0;
+      transform: translateY(18px);
+      animation: riseFade 700ms 2140ms var(--ease) forwards;
+    }
+
+    .designed {
+      position: relative;
+      display: inline-block;
+      min-height: 1.2em;
+      white-space: nowrap;
+    }
+
+    .designed::after {
+      content: "";
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      margin-left: 6px;
+      vertical-align: -0.12em;
+      background: rgba(255,255,255,.84);
+      animation: caret 850ms step-end infinite;
+    }
+
+    .sub {
+      font-size: clamp(0.82rem, 1.4vw, 0.96rem);
+      color: rgba(255,255,255,.42);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      opacity: 0;
+      animation: fadeIn 800ms 2500ms ease forwards;
+    }
+
+    @keyframes shellIn {
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @keyframes textIn {
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes badgeIn {
+      60% { opacity: 1; transform: scale(1.05) rotate(4deg); }
+      100% { opacity: 1; transform: scale(1) rotate(0); }
+    }
+
+    @keyframes sheen {
+      to { transform: translateX(130%); }
+    }
+
+    @keyframes riseFade {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
+
+    @keyframes halo {
+      0%, 100% { transform: scale(0.97); opacity: 0.7; }
+      50% { transform: scale(1.04); opacity: 1; }
+    }
+
+    @keyframes drift {
+      from { transform: translate3d(0,0,0); }
+      to { transform: translate3d(18px, 12px, 0); }
+    }
+
+    @keyframes scan {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+
+    @keyframes typing {
+      to { width: 100%; }
+    }
+
+    @keyframes caret {
+      50% { border-color: transparent; background: transparent; }
+    }
+
+    @media (max-width: 700px) {
+      .stage { gap: 18px; }
+      .logo-shell { border-radius: 28px; }
+      .logo-inner { border-radius: 24px; }
+      .typed { border-right-width: 2px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="grid"></div>
+  <div class="scanline"></div>
+
+  <main class="stage">
+    <section class="logo-shell" aria-label="Friend brand intro">
+      <div class="logo-inner">
+        <div class="friend">Friend</div>
+        <div class="badge" aria-hidden="true">
+          <div class="arrow"></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="brand-block">
+      <div class="stock-line"><span class="typed">Stock Mate +</span></div>
+      <div class="credit"><span class="designed">designed by Herve K. Friend</span></div>
+      <div class="sub">premium business entrance</div>
+    </div>
+  </main>
+</body>
+</html>

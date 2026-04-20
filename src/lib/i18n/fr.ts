@@ -1,7 +1,7 @@
 import type { TranslationDictionary } from "./index";
 export const fr: TranslationDictionary ={
   common: {
-    appName: "TradeWFriend+",
+    appName: "Curuza +",
     loading: "Chargement...",
     save: "Enregistrer",
     saving: "Enregistrement...",
@@ -28,10 +28,12 @@ export const fr: TranslationDictionary ={
     success: "Succès",
     error: "Erreur",
     warning: "Avertissement",
+    date: "Date",
+    name: "Nom",
   },
 
   auth: {
-    title: "TradeWFriend+",
+    title: "Curuza +",
     subtitle: "Gestion intelligente du commerce",
     checking: "Préparation...",
     chooseAccount: "Choisir un compte",
@@ -42,9 +44,9 @@ export const fr: TranslationDictionary ={
     signIn: "Se connecter",
     createOwnerAccount: "Créer un compte propriétaire",
     ownerName: "Nom du propriétaire",
-    ownerNamePlaceholder: "Exemple : Friend",
+    ownerNamePlaceholder: "Exemple : Jean Dupont",
     businessName: "Nom du commerce",
-    businessNamePlaceholder: "Exemple : TradeWFriend Shop",
+    businessNamePlaceholder: "Exemple : Mon Magasin",
     phoneNumber: "Numéro de téléphone",
     phonePlaceholder: "07XXXXXXXX",
     pin: "PIN",
@@ -71,6 +73,7 @@ export const fr: TranslationDictionary ={
     totalUnpaid: "Dette totale impayée",
     totalCustomers: "Nombre total de clients",
     todaySales: "Ventes d'aujourd'hui",
+    todayRevenue: "Revenu d'aujourd'hui",
     todayDebt: "Dette donnée aujourd'hui",
     totalSales: "Ventes totales",
     target: "Votre objectif",
@@ -92,7 +95,9 @@ export const fr: TranslationDictionary ={
     dashboard: "Tableau de bord",
     addDebt: "Ajouter une dette",
     debtList: "Liste des dettes",
+    sales: "Ventes",
     salesTracking: "Ventes",
+    reports: "Rapports",
     inventory: "Stock",
     customers: "Clients",
     messages: "Messages",
@@ -223,6 +228,18 @@ debts: {
     active: "Actif",
     disabled: "Désactivé",
     disableEmployee: "Désactiver l'employé",
+    totalEmployees: "Employés au total",
+    activeEmployees: "Employés actifs",
+    addEmployeeHelp: "Créez un compte employé avec numéro de téléphone et PIN à 6 chiffres",
+    employeeNamePlaceholder: "Nom de l'employé",
+    pinPlaceholder: "PIN à 6 chiffres",
+    enterName: "Veuillez entrer le nom de l'employé",
+    fetchFailed: "Échec du chargement des employés",
+    createFailed: "Échec de la création de l'employé",
+    confirmDisable: "Voulez-vous désactiver ce compte employé pour",
+    ownerNotFound: "Compte propriétaire introuvable",
+    phoneAlreadyExists: "Ce numéro de téléphone a déjà un compte employé",
+    pinSixDigits: "Le PIN doit contenir exactement 6 chiffres",
     disableConfirm: "Voulez-vous désactiver ce compte employé ?",
     ownerOnly: "Seul le propriétaire peut accéder à la gestion des employés",
     ownerMissing: "Compte propriétaire introuvable",
@@ -231,6 +248,45 @@ debts: {
 
   sales: {
     title: "Ventes",
+    subtitle: "Enregistrer les ventes payées",
+    refresh: "Actualiser",
+    todayRevenue: "Revenu d'aujourd'hui",
+    salesToday: "Ventes aujourd'hui",
+    unitsSold: "Unités vendues",
+    itemsInStock: "Articles en stock",
+    newSale: "Nouvelle vente",
+    item: "Article",
+    itemPlaceholder: "Sélectionnez un article...",
+    searchItemsPlaceholder: "Rechercher des articles...",
+    noItemsFound: "Aucun article trouvé.",
+    outOfStock: "Rupture de stock",
+    leftSuffix: "restants",
+    quantity: "Quantité",
+    unitPrice: "Prix unitaire",
+    total: "Total",
+    notesOptional: "Notes (optionnel)",
+    notesPlaceholder: "ex. espèce, nom du client...",
+    saveSale: "Enregistrer la vente",
+    todaySalesTitle: "Ventes d'aujourd'hui",
+    noSalesToday: "Aucune vente enregistrée aujourd'hui.",
+    firstSaleHint: "Sélectionnez un article ci-dessus pour enregistrer votre première vente.",
+    saleNumber: "Vente #",
+    itemColumn: "Article",
+    qtyShort: "Qté",
+    time: "Heure",
+    dayTotal: "Total du jour",
+    dashboardTipTitle: "Astuce Dashboard",
+    dashboardTipBody:
+      "Pour afficher le revenu total sur le tableau de bord (ventes + paiements de dette), additionnez la table sales et la table debt_payments puis renommez la carte en Revenu total.",
+    selectItemError: "Veuillez sélectionner un article.",
+    quantityMinError: "La quantité doit être au moins de 1.",
+    invalidUnitPrice: "Prix unitaire invalide.",
+    saveFailed: "Échec de l'enregistrement de la vente. Réessayez.",
+    savedSuffix: "enregistrée",
+    loadFailed: "Échec du chargement du stock de vente.",
+    onlyUnitsAvailablePrefix: "Seulement",
+    onlyUnitsAvailableSuffix: "unités disponibles en stock.",
+    maxPrefix: "Max",
     reportTitle: "Rapport financier",
     todayOnly: "Aujourd'hui",
     thisWeek: "Cette semaine",
@@ -258,8 +314,16 @@ debts: {
   title: "Stock",
   subtitle: "Gérez votre stock de manière propre et professionnelle",
   fetchFailed: "Échec du chargement du stock.",
+  loadFailed: "Échec du chargement du stock.",
   imageUploaded: "Image téléchargée avec succès.",
   imageUploadFailed: "Échec du téléchargement de l'image.",
+  barcodeMatched: "Article trouvé",
+  barcodeDetectedNoMatch: "Code-barres détecté mais aucun article correspondant n'a été trouvé",
+  barcodeScannerFailed: "Impossible d'ouvrir le scanner de code-barres",
+  barcodeScannerUnsupported: "Scanner non pris en charge sur cet appareil",
+  pointCameraToBarcode: "Pointez la caméra vers le code-barres",
+  scanBarcode: "Scanner le code-barres",
+  scannerReady: "Scanner prêt",
   fillAllFields: "Veuillez remplir correctement tous les champs.",
   invalidValues: "La quantité et le prix doivent être des nombres valides.",
   itemAdded: "Article ajouté avec succès.",
@@ -379,6 +443,7 @@ reports: {
   payment: {
     title: "Paiement",
     recordPayment: "Enregistrer le paiement",
+    unitPrice: "Prix unitaire",
     amountToPay: "Montant à payer",
     confirmPayment: "Confirmer le paiement",
     paymentSuccess: "Paiement enregistré avec succès",
@@ -391,6 +456,13 @@ reports: {
     debtReminder: "Rappel de dette",
     paymentReminder: "Rappel de paiement",
     fullDebtReport: "Rapport complet de dette",
+    professionalGreeting: "Bonjour",
+    professionalDebtIntro: "Voici le résumé actuel de votre dette chez",
+    professionalDebtItemsTitle: "Articles à crédit",
+    professionalDebtClosing: "Veuillez vérifier et nous contacter s'il faut corriger quelque chose. Merci.",
+    downloadCustomerPdf: "Télécharger le PDF client",
+    customerPdfDownloaded: "PDF client téléchargé avec succès",
+    customerPdfFailed: "Échec de la génération du PDF client",
     sendWhatsapp: "Envoyer via WhatsApp",
     sendSms: "Envoyer par SMS",
     phoneOnly: "Cette action fonctionne uniquement sur téléphone",
@@ -417,12 +489,29 @@ reports: {
   install: {
     title: "Installer l'application",
     subtitle: "Installez cette application sur votre appareil",
+    installedTitle: "L'application est installée avec succès !",
+    installedHint: "Vous pouvez l'ouvrir depuis votre écran d'accueil",
+    iosTitle: "Sur iPhone/iPad :",
+    androidTitle: "Sur Android :",
+    installButton: "Installer l'application",
+    back: "Retour",
+    stepOne: "Touchez le bouton Partager",
+    stepTwo: "Faites défiler puis choisissez Ajouter à l'écran d'accueil",
+    stepThree: "Touchez Ajouter",
+    androidStepOne: "Ouvrez le menu du navigateur",
+    androidStepTwo: "Choisissez Installer l'application ou Ajouter à l'écran d'accueil",
+    androidStepThree: "Touchez Installer",
+    featuresTitle: "Avantages de l'application :",
+    featureOffline: "Fonctionne hors ligne",
+    featureFast: "Rapide comme une vraie application",
+    featureData: "Utilise très peu de données",
   },
 
   notFound: {
     title: "Page introuvable",
     subtitle: "La page que vous cherchez n'existe pas",
     backHome: "Retour à l'accueil",
+    oops: "Oups ! Page introuvable",
   },
 
   errors: {
@@ -442,3 +531,35 @@ reports: {
     deleted: "Supprimé avec succès",
   },
 } 
+export const labels = {
+  // ...your existing French labels
+
+  smsTemplates: {
+    debtConfirmation:
+      "Bonjour {customerName}. Merci d’avoir acheté chez {enterpriseName}. Vous avez pris {items}. Le montant total est de {amount} FRW{dueDatePart}. Merci.",
+
+    paymentThankYou:
+      "Bonjour {customerName}. {enterpriseName} vous remercie pour votre paiement de {amount} FRW. Merci pour votre confiance.",
+
+    partialPaymentThankYou:
+      "Bonjour {customerName}. Merci d’avoir payé {paidAmount} FRW à {enterpriseName}. Le montant restant est de {remainingAmount} FRW.",
+
+    paymentReminder:
+      "Bonjour {customerName}. Nous vous rappelons qu’il vous reste à payer {amount} FRW à {enterpriseName}{dueDatePart}. Merci.",
+
+    overdueReminder:
+      "Bonjour {customerName}. Votre paiement de {amount} FRW à {enterpriseName} est toujours en attente. Veuillez le régler dès que possible. Merci.",
+
+    cashThankYou:
+      "Bonjour {customerName}. Merci d’avoir acheté {items} chez {enterpriseName}. Vous avez payé {amount} FRW. Merci.",
+
+    generalThankYou:
+      "Bonjour {customerName}. Merci d’avoir fait affaire avec {enterpriseName}. Nous sommes heureux de vous servir.",
+
+    paymentRequest:
+      "Bonjour {customerName}. Nous vous informons qu’un paiement de {amount} FRW est toujours attendu par {enterpriseName}. Merci de payer rapidement.",
+
+    dueDatePart: ". La date de paiement est {dueDate}",
+    noDueDatePart: "",
+  },
+} as const;

@@ -7,10 +7,13 @@ export interface BusinessSettings {
 }
 
 const DEFAULT_SETTINGS: BusinessSettings = {
-  businessName: "TradeWFriend+",
+  businessName: "",
   initialCapital: 0,
   targetCapital: 0,
 };
+
+const STORAGE_KEY = "curuza_business_settings";
+const LEGACY_STORAGE_KEY = "tradewfriend_business_settings";
 
 export const useBusinessSettings = () => {
   const [settings, setSettings] = useState<BusinessSettings>(DEFAULT_SETTINGS);
@@ -18,9 +21,11 @@ export const useBusinessSettings = () => {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("tradewfriend_business_settings");
+      const stored = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
       if (stored) {
-        setSettings(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        setSettings(parsed);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
       }
     } catch (error) {
       console.error("Error loading business settings:", error);
@@ -32,7 +37,7 @@ export const useBusinessSettings = () => {
   const updateSettings = (newSettings: Partial<BusinessSettings>) => {
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
-    localStorage.setItem("tradewfriend_business_settings", JSON.stringify(updated));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   };
 
   return {

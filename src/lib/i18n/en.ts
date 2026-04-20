@@ -1,6 +1,6 @@
 export const en = {
   common: {
-    appName: "TradeWFriend+",
+    appName: "Curuza +",
     loading: "Loading...",
     save: "Save",
     saving: "Saving...",
@@ -27,10 +27,12 @@ export const en = {
     success: "Success",
     error: "Error",
     warning: "Warning",
+    date: "Date",
+    name: "Name",
   },
 
   auth: {
-    title: "TradeWFriend+",
+    title: "Curuza +",
     subtitle: "Smart business manager",
     checking: "Preparing...",
     chooseAccount: "Choose Account",
@@ -41,9 +43,9 @@ export const en = {
     signIn: "Sign In",
     createOwnerAccount: "Create Owner Account",
     ownerName: "Owner Name",
-    ownerNamePlaceholder: "Example: Friend",
+    ownerNamePlaceholder: "Example: John Doe",
     businessName: "Business Name",
-    businessNamePlaceholder: "Example: TradeWFriend Shop",
+    businessNamePlaceholder: "Example: My Shop",
     phoneNumber: "Phone Number",
     phonePlaceholder: "07XXXXXXXX",
     pin: "PIN",
@@ -70,6 +72,7 @@ export const en = {
   totalUnpaid: "Total Unpaid Debt",
   totalCustomers: "Customers",
   todaySales: "Today's Sales",
+  todayRevenue: "Today's Revenue",
   todayDebt: "Today's Debt",
   totalSales: "Total Sales",
   target: "Your Target",
@@ -91,7 +94,9 @@ export const en = {
     dashboard: "Dashboard",
     addDebt: "Add Debt",
     debtList: "Debt List",
+    sales: "Sales",
     salesTracking: "Sales",
+    reports: "Reports",
     inventory: "Inventory",
     customers: "Customers",
     messages: "Messages",
@@ -221,6 +226,18 @@ debts: {
     active: "Active",
     disabled: "Disabled",
     disableEmployee: "Disable Employee",
+    totalEmployees: "Total Employees",
+    activeEmployees: "Active Employees",
+    addEmployeeHelp: "Create a staff account with a phone number and 6-digit PIN",
+    employeeNamePlaceholder: "Employee name",
+    pinPlaceholder: "6-digit PIN",
+    enterName: "Please enter the employee name",
+    fetchFailed: "Failed to load employees",
+    createFailed: "Failed to create employee",
+    confirmDisable: "Do you want to disable this employee account for",
+    ownerNotFound: "Owner account not found",
+    phoneAlreadyExists: "That phone number already has an employee account",
+    pinSixDigits: "PIN must be exactly 6 digits",
     disableConfirm: "Do you want to disable this employee account?",
     ownerOnly: "Only the owner can access employee management",
     ownerMissing: "Owner account not found",
@@ -229,6 +246,45 @@ debts: {
 
   sales: {
     title: "Sales",
+    subtitle: "Record paid sales",
+    refresh: "Refresh",
+    todayRevenue: "Today's Revenue",
+    salesToday: "Sales Today",
+    unitsSold: "Units Sold",
+    itemsInStock: "Items in Stock",
+    newSale: "New Sale",
+    item: "Item",
+    itemPlaceholder: "Select an item...",
+    searchItemsPlaceholder: "Search items...",
+    noItemsFound: "No items found.",
+    outOfStock: "Out of stock",
+    leftSuffix: "left",
+    quantity: "Quantity",
+    unitPrice: "Unit Price",
+    total: "Total",
+    notesOptional: "Notes (optional)",
+    notesPlaceholder: "e.g. cash, customer name...",
+    saveSale: "Save Sale",
+    todaySalesTitle: "Today's Sales",
+    noSalesToday: "No sales recorded today yet.",
+    firstSaleHint: "Select an item above to record your first sale.",
+    saleNumber: "Sale #",
+    itemColumn: "Item",
+    qtyShort: "Qty",
+    time: "Time",
+    dayTotal: "Day Total",
+    dashboardTipTitle: "Dashboard Tip",
+    dashboardTipBody:
+      "To show total revenue on the dashboard (sales + debt payments), update the totalSales card to sum both the sales table and the debt_payments table, then rename it to Total Revenue.",
+    selectItemError: "Please select an item.",
+    quantityMinError: "Quantity must be at least 1.",
+    invalidUnitPrice: "Invalid unit price.",
+    saveFailed: "Failed to save sale. Please try again.",
+    savedSuffix: "saved",
+    loadFailed: "Failed to load sales inventory.",
+    onlyUnitsAvailablePrefix: "Only",
+    onlyUnitsAvailableSuffix: "units available in stock.",
+    maxPrefix: "Max",
     reportTitle: "Financial Report",
     todayOnly: "Today",
     thisWeek: "This Week",
@@ -256,8 +312,16 @@ debts: {
   title: "Inventory",
   subtitle: "Manage your stock in a clean and professional way",
   fetchFailed: "Failed to load inventory.",
+  loadFailed: "Failed to load inventory.",
   imageUploaded: "Image uploaded successfully.",
   imageUploadFailed: "Failed to upload image.",
+  barcodeMatched: "Item found",
+  barcodeDetectedNoMatch: "Barcode detected but no matching item was found",
+  barcodeScannerFailed: "Unable to open barcode scanner",
+  barcodeScannerUnsupported: "Scanner not supported on this device",
+  pointCameraToBarcode: "Point camera at barcode",
+  scanBarcode: "Scan barcode",
+  scannerReady: "Scanner ready",
   fillAllFields: "Please fill in all fields correctly.",
   invalidValues: "Quantity and cost must be valid numbers.",
   itemAdded: "Item added successfully.",
@@ -375,6 +439,7 @@ debts: {
   payment: {
     title: "Payment",
     recordPayment: "Record Payment",
+    unitPrice: "Unit Price",
     amountToPay: "Amount to Pay",
     confirmPayment: "Confirm Payment",
     paymentSuccess: "Payment recorded successfully",
@@ -387,6 +452,13 @@ debts: {
     debtReminder: "Debt Reminder",
     paymentReminder: "Payment Reminder",
     fullDebtReport: "Full Debt Report",
+    professionalGreeting: "Hello",
+    professionalDebtIntro: "Here is your current debt summary from",
+    professionalDebtItemsTitle: "Debt items",
+    professionalDebtClosing: "Please review and contact us if anything needs correction. Thank you.",
+    downloadCustomerPdf: "Download customer PDF",
+    customerPdfDownloaded: "Customer PDF downloaded successfully",
+    customerPdfFailed: "Failed to generate customer PDF",
     sendWhatsapp: "Send via WhatsApp",
     sendSms: "Send via SMS",
     phoneOnly: "This action works on phone only",
@@ -414,12 +486,29 @@ debts: {
   install: {
     title: "Install App",
     subtitle: "Install this app on your device",
+    installedTitle: "App installed successfully!",
+    installedHint: "You can open it from your home screen",
+    iosTitle: "On iPhone/iPad:",
+    androidTitle: "On Android:",
+    installButton: "Install App",
+    back: "Back",
+    stepOne: "Tap the Share button",
+    stepTwo: "Scroll and choose Add to Home Screen",
+    stepThree: "Tap Add",
+    androidStepOne: "Open the browser menu",
+    androidStepTwo: "Choose Install app or Add to Home screen",
+    androidStepThree: "Tap Install",
+    featuresTitle: "App benefits:",
+    featureOffline: "Works offline",
+    featureFast: "Fast like a real app",
+    featureData: "Uses very little data",
   },
 
   notFound: {
     title: "Page Not Found",
     subtitle: "The page you are looking for does not exist",
     backHome: "Go Back Home",
+    oops: "Oops! Page not found",
   },
 
   errors: {
@@ -439,3 +528,173 @@ debts: {
     deleted: "Deleted successfully",
   },
 } as const;
+export const labels = {
+  // Auth & Navigation
+  login: "Injira",
+  logout: "Sohoka",
+  pin: "PIN",
+  name: "Izina",
+  welcome: "Murakaza neza",
+  businessName: "Izina ry'ubucuruzi",
+  phone: "Telefone",
+  role: "Inshingano",
+  owner: "Nyir'ubucuruzi",
+  employee: "Umukozi",
+
+  // Dashboard
+  dashboard: "Ibikubiye",
+  addDebt: "Ongeraho Ideni",
+  debtList: "Urutonde rw'Abafite Ideni",
+  salesTracking: "Raporo Irambuye",
+  inventoryTitle: "Ibyo naranguye",
+  inventorySubtitle: "Ibintu byose yaguze",
+  addInventoryItem: "Ongeraho Ikintu",
+  noInventory: "Nta kintu kihari",
+  totalUnpaid: "Amafaranga yose atarishyurwa",
+  totalPaid: "Amafaranga yishyuwe",
+  totalProfit: "Inyungu yose",
+  resetAll: "Tangira Bushya",
+  resetSuccess: "Amafaranga yasubijwe kuri 0!",
+
+  // Customer & Debt Fields
+  customerName: "Izina ry'umukiriya",
+  phoneNumber: "Numero ya Telefone",
+  itemsTaken: "Ibintu Byatwawe",
+  amount: "Amafaranga",
+  dueDate: "Itariki yo kwishyura",
+  dateTaken: "Itariki yo gufata",
+  paymentStatus: "Imiterere y'ubwishyu",
+  willPayLater: "Azishyura nyuma",
+  paid: "Yishyuye",
+  unpaid: "Ntarishyura",
+  Inbox: "Ubutumwa",
+  addNew: "Ongeraho Ikindi",
+  search: "Shakisha",
+  noDebts: "Nta deni rihari",
+  totalDebt: "Ideni ryose",
+  customers: "Abakiriya",
+
+  // Sales Fields
+  itemName: "Izina ry'ikintu",
+  costPrice: "Igiciro cyo kugura",
+  salePrice: "Igiciro cyo kugurisha",
+  quantity: "Umubare",
+  dateSold: "Itariki byagurishijweho",
+  dateBought: "Itariki byaguzweho",
+  totalSales: "Amafaranga yose yinjijwe",
+  noSales: "Nta kintu cyagurishijwe",
+
+  // Actions
+  save: "Emeza",
+  cancel: "Bireke",
+  delete: "Siba",
+  edit: "Hindura",
+  call: "Muhamagare",
+  sendMessage: "Mwohereze ubutumwa",
+  markAsPaid: "Amaze kunyishyura",
+  remind: "Mwibutse",
+  filter: "Tondeka",
+  ok: "Ok",
+  confirm: "Emeza",
+  confirmDelete: "Urashaka gusiba?",
+  back: "Subira inyuma",
+  next: "Komeza",
+  finish: "Soza",
+
+  // Placeholders
+  customerNamePlaceholder: "Izina ry'umukiriya...",
+  phonePlaceholder: "07X XXX XXXX",
+  itemNamePlaceholder: "Izina ry'ikintu",
+  quantityPlaceholder: "Umubare uri muri stock",
+  costPricePlaceholder: "Igiciro cyo kugura",
+  amountPlaceholder: "Andika amafaranga",
+  messagePlaceholder: "Andika ubutumwa...",
+  searchPlaceholder: "Shakisha...",
+  businessNamePlaceholder: "Urugero: Chez Marie Shop",
+  displayNamePlaceholder: "Urugero: Jeanne",
+
+  // Messages
+  debtSavedSuccess: "Ideni ryashyizweho neza",
+  saleSavedSuccess: "Icyagurishijwe cyashyizweho neza",
+  markedAsPaid: "Byamaze kwishyurwa",
+  paymentRecorded: "Ubwishyu bwashyizweho",
+  itemAdded: "Ikintu cyongeyeho",
+  loading: "Birimo...",
+  error: "Habaye ikosa",
+  success: "Byagenze neza",
+  invalidPin: "PIN ntiyemera",
+  accountLocked: "Konti irafunze",
+  tryAgain: "Ongera ugerageze",
+
+  // Settings
+  settings: "Igenamiterere",
+  businessSettings: "Igenamiterere ry'ubucuruzi",
+  initialCapital: "Amafaranga y'ibanze",
+  targetCapital: "Amafaranga y'intego",
+  saveSettings: "Emeza igenamiterere",
+  factoryReset: "Tangira bushya",
+  factoryResetConfirm: "Ibi bizasiba amakuru yose",
+
+  // Inventory
+  takePhoto: "Fata ifoto",
+  selectFile: "Hitamo ifoto",
+  imageUploaded: "Ifoto yashyizweho",
+  imageUploadError: "Ifoto ntiyashyizweho",
+  stock: "Stock",
+  lowStock: "Stock nkeya",
+  outOfStock: "Nta stock ihari",
+
+  // App Info
+  appName: "Curuza +",
+  jewelryBusiness: "Ubucuruzi",
+  smartBusinessManager: "Umuyobozi w'ubucuruzi w'intelligensiya",
+
+  // SMS Templates
+  smsTemplates: {
+    debtConfirmation:
+      "Muraho {customerName}. Murakoze kugura kuri {enterpriseName}. Mwafashe {items}. Amafaranga yose ni {amount} FRW{dueDatePart}. Murakoze.",
+
+    paymentThankYou:
+      "Muraho {customerName}. {enterpriseName} ibashimiye ko mwishyuye {amount} FRW. Murakoze ku bwizerane bwanyu.",
+
+    partialPaymentThankYou:
+      "Muraho {customerName}. Murakoze kwishyura {paidAmount} FRW kuri {enterpriseName}. Hasigaye {remainingAmount} FRW.",
+
+    paymentReminder:
+      "Muraho {customerName}. Turabibutsa ko musigayemo kwishyura {amount} FRW kuri {enterpriseName}{dueDatePart}. Murakoze.",
+
+    overdueReminder:
+      "Muraho {customerName}. Ubwishyu bwa {amount} FRW kuri {enterpriseName} buracyategerejwe. Turabasaba kubukora vuba. Murakoze.",
+
+    cashThankYou:
+      "Muraho {customerName}. Murakoze kugura {items} kuri {enterpriseName}. Mwishyuye {amount} FRW. Murakoze.",
+
+    generalThankYou:
+      "Muraho {customerName}. Murakoze gukorana na {enterpriseName}. Twishimiye kubakorera.",
+
+    paymentRequest:
+      "Muraho {customerName}. Murabwirwa ko hari ubwishyu bwa {amount} FRW bugitegerejwe kuri {enterpriseName}. Turabasaba kubwishyura vuba. Murakoze.",
+
+    dueDatePart: ". Itariki yo kwishyura ni {dueDate}",
+    noDueDatePart: "",
+  },
+} as const;
+
+export const formatCurrency = (amount: number): string => {
+  return (
+    new Intl.NumberFormat("rw-RW", {
+      style: "decimal",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount) + " FRW"
+  );
+};
+
+export const formatDate = (date: Date | string): string => {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("fr-RW", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};

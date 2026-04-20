@@ -584,7 +584,7 @@ const AddDebtPageEnhanced: React.FC = () => {
       (item) => `- ${item.name} x${item.quantity} = ${formatCurrency(item.quantity * item.price)}`
     );
 
-    const businessName = businessSettings.businessName || t("common.appName");
+    const businessName = auth.profile?.businessName || "Business";
 
     const message = [
       `${t("addDebt.debtNotificationGreeting")} ${customerName},`,

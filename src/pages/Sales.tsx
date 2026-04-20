@@ -1,465 +1,659 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Download, TrendingUp, Trash2, Wallet, ReceiptText } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-import { formatCurrency } from "@/lib/kinyarwanda";
-import { getDateKeyFromIso, isDateInFilter } from "@/lib/reporting";
 import { toast } from "sonner";
-import { useI18n } from "@/contexts/LanguageContext";
+import {
+  Package,
+  ShoppingCart,
+  TrendingUp,
+  Plus,
+  Minus,
+  Check,
+  Search,
+  ChevronDown,
+  Receipt,
+  CalendarDays,
+  RefreshCw,
+  AlertCircle,
+  X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import AppShell from "@/components/layout/AppShell";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { formatCurrency } from "@/lib/kinyarwanda";
 
-type FilterOption = "today" | "week" | "month" | "all";
-
-interface DailyReport {
-  date: string;
-  debtsPaid: number;
-  salesTotal: number;
-  unpaidDebt: number;
-  receivedTotal: number;
-  expectedTotal: number;
-  newDebt: number;
+interface InventoryItem {
+  id: string;
+  item_name: string;
+  quantity: number;
+  unit_price: number;
+  cost_price?: number | null;
 }
 
-interface DailyAccumulator {
-  date: string;
-  debtsPaid: number;
-  salesTotal: number;
-  newDebt: number;
+interface SaleRecord {
+  id: string;
+  item_name: string | null;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  created_at: string;
 }
 
-const ReportsPage = () => {
-  const navigate = useNavigate();
-  const { t, language } = useI18n();
+const todayRangeLocal = () => {
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
 
-  const [reports, setReports] = useState<DailyReport[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState<FilterOption>("all");
-  const [summary, setSummary] = useState({
-    receivedTotal: 0,
-    unpaidDebt: 0,
-    expectedTotal: 0,
-    salesTotal: 0,
-    debtsPaid: 0,
-    newDebt: 0,
-  });
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
 
-  const FILTER_OPTIONS: { value: FilterOption; label: string }[] = [
-    { value: "today", label: t("reports.filterToday") },
-    { value: "week", label: t("reports.filterWeek") },
-    { value: "month", label: t("reports.filterMonth") },
-    { value: "all", label: t("reports.filterAll") },
-  ];
-
-  const fetchReports = useCallback(async () => {
-    setLoading(true);
-
-    try {
-      const [salesResponse, debtItemsResponse, debtPaymentsResponse] = await Promise.all([
-        (supabase as any).from("sales").select("sale_price, quantity, created_at"),
-        (supabase as any).from("debt_items").select("total_price, date_taken"),
-        (supabase as any).from("debt_payments").select("amount_paid, paid_at"),
-      ]);
-
-      if (salesResponse.error) throw salesResponse.error;
-      if (debtItemsResponse.error) throw debtItemsResponse.error;
-      if (debtPaymentsResponse.error) throw debtPaymentsResponse.error;
-
-      const salesData = (salesResponse.data ?? []) as Array<{
-        sale_price: number;
-        quantity: number;
-        created_at: string;
-      }>;
-
-      const debtItemsData = (debtItemsResponse.data ?? []) as Array<{
-        total_price: number;
-        date_taken: string;
-      }>;
-
-      const debtPaymentsData = (debtPaymentsResponse.data ?? []) as Array<{
-        amount_paid: number;
-        paid_at: string;
-      }>;
-
-      const dailyMap: Record<string, DailyAccumulator> = {};
-
-      const getOrCreate = (date: string): DailyAccumulator => {
-        if (!dailyMap[date]) {
-          dailyMap[date] = {
-            date,
-            debtsPaid: 0,
-            salesTotal: 0,
-            newDebt: 0,
-          };
-        }
-        return dailyMap[date];
-      };
-
-      salesData.forEach((sale) => {
-        const dateKey = getDateKeyFromIso(sale.created_at);
-        const entry = getOrCreate(dateKey);
-        entry.salesTotal += (Number(sale.sale_price) || 0) * (Number(sale.quantity) || 0);
-      });
-
-      debtItemsData.forEach((item) => {
-        const dateKey = getDateKeyFromIso(item.date_taken);
-        const entry = getOrCreate(dateKey);
-        entry.newDebt += Number(item.total_price) || 0;
-      });
-
-      debtPaymentsData.forEach((payment) => {
-        const dateKey = getDateKeyFromIso(payment.paid_at);
-        const entry = getOrCreate(dateKey);
-        entry.debtsPaid += Number(payment.amount_paid) || 0;
-      });
-
-      const now = new Date();
-
-      const result: DailyReport[] = Object.values(dailyMap)
-        .filter((entry) => isDateInFilter(entry.date, filter, now))
-        .map((entry) => {
-          const unpaidDebt = Math.max(entry.newDebt - entry.debtsPaid, 0);
-
-          return {
-            date: entry.date,
-            debtsPaid: entry.debtsPaid,
-            salesTotal: entry.salesTotal,
-            unpaidDebt,
-            receivedTotal: entry.salesTotal + entry.debtsPaid,
-            expectedTotal: entry.salesTotal + entry.newDebt,
-            newDebt: entry.newDebt,
-          };
-        })
-        .sort((a, b) => b.date.localeCompare(a.date));
-
-      setReports(result);
-
-      setSummary({
-        receivedTotal: result.reduce((sum, report) => sum + report.receivedTotal, 0),
-        unpaidDebt: result.reduce((sum, report) => sum + report.unpaidDebt, 0),
-        expectedTotal: result.reduce((sum, report) => sum + report.expectedTotal, 0),
-        salesTotal: result.reduce((sum, report) => sum + report.salesTotal, 0),
-        debtsPaid: result.reduce((sum, report) => sum + report.debtsPaid, 0),
-        newDebt: result.reduce((sum, report) => sum + report.newDebt, 0),
-      });
-    } catch (error) {
-      console.error("Fetch reports error:", error);
-      toast.error(t("reports.fetchFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [filter, t]);
-
-  useEffect(() => {
-    void fetchReports();
-  }, [fetchReports]);
-
-  useEffect(() => {
-    const refreshReports = () => {
-      void fetchReports();
-    };
-
-    const handleVisibility = () => {
-      if (!document.hidden) {
-        void fetchReports();
-      }
-    };
-
-    window.addEventListener("paymentMade", refreshReports as EventListener);
-    window.addEventListener("newDebtAdded", refreshReports as EventListener);
-    window.addEventListener("debtDeleted", refreshReports as EventListener);
-    window.addEventListener("clientDeleted", refreshReports as EventListener);
-    window.addEventListener("factoryReset", refreshReports as EventListener);
-    window.addEventListener("focus", refreshReports);
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      window.removeEventListener("paymentMade", refreshReports as EventListener);
-      window.removeEventListener("newDebtAdded", refreshReports as EventListener);
-      window.removeEventListener("debtDeleted", refreshReports as EventListener);
-      window.removeEventListener("clientDeleted", refreshReports as EventListener);
-      window.removeEventListener("factoryReset", refreshReports as EventListener);
-      window.removeEventListener("focus", refreshReports);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [fetchReports]);
-
-  const formatDateLabel = (dateStr: string) => {
-    const date = new Date(`${dateStr}T00:00:00`);
-    return date.toLocaleDateString(
-      language === "fr" ? "fr-FR" : language === "en" ? "en-GB" : "rw-RW",
-      {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }
-    );
+  return {
+    start: start.toISOString(),
+    end: end.toISOString(),
   };
-
-  const deleteTodayData = async () => {
-    const confirmed = window.confirm(t("reports.deleteTodayConfirm"));
-    if (!confirmed) return;
-
-    try {
-      const todayKey = getDateKeyFromIso(new Date().toISOString());
-      const start = new Date(`${todayKey}T00:00:00.000Z`);
-      const end = new Date(`${todayKey}T23:59:59.999Z`);
-
-      const tasks = await Promise.allSettled([
-        (supabase as any)
-          .from("sales")
-          .delete()
-          .gte("created_at", start.toISOString())
-          .lte("created_at", end.toISOString()),
-
-        (supabase as any)
-          .from("debt_items")
-          .delete()
-          .gte("date_taken", start.toISOString())
-          .lte("date_taken", end.toISOString()),
-
-        (supabase as any)
-          .from("debt_payments")
-          .delete()
-          .gte("paid_at", start.toISOString())
-          .lte("paid_at", end.toISOString()),
-      ]);
-
-      const failed = tasks.filter((result) => result.status === "rejected");
-      if (failed.length > 0) {
-        throw new Error("Some delete operations failed");
-      }
-
-      toast.success(t("reports.todayDeleted"));
-
-      window.dispatchEvent(new CustomEvent("debtDeleted"));
-      window.dispatchEvent(new CustomEvent("paymentMade"));
-      window.dispatchEvent(new CustomEvent("newDebtAdded"));
-      window.dispatchEvent(new CustomEvent("factoryReset"));
-
-      await fetchReports();
-    } catch (error) {
-      console.error("Delete today data error:", error);
-      toast.error(t("reports.deleteTodayFailed"));
-    }
-  };
-
-  const downloadCSV = () => {
-    const header = [
-      t("reports.csvDate"),
-      t("reports.csvSales"),
-      t("reports.csvNewDebt"),
-      t("reports.csvDebtPaid"),
-      t("reports.csvUnpaidDebt"),
-      t("reports.csvReceived"),
-      t("reports.csvExpected"),
-    ].join(",");
-
-    const rows = reports
-      .map(
-        (report) =>
-          `${report.date},${report.salesTotal},${report.newDebt},${report.debtsPaid},${report.unpaidDebt},${report.receivedTotal},${report.expectedTotal}`
-      )
-      .join("\n");
-
-    const blob = new Blob([header + "\n" + rows], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `reports-${getDateKeyFromIso(new Date().toISOString())}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    toast.success(t("reports.csvDownloaded"));
-  };
-
-  const isToday = (dateStr: string) =>
-    dateStr === getDateKeyFromIso(new Date().toISOString());
-
-  const filterTitle = useMemo(
-    () =>
-      ({
-        today: t("reports.filterTitleToday"),
-        week: t("reports.filterTitleWeek"),
-        month: t("reports.filterTitleMonth"),
-        all: t("reports.filterTitleAll"),
-      })[filter],
-    [filter, t]
-  );
-
-  return (
-  <AppShell
-    title={t("reports.title")}
-    subtitle={t("reports.subtitle")}
-    showBack
-    showHome
-    contentClassName="pt-2 md:pt-3"
-    headerRight={
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="outline"
-          onClick={downloadCSV}
-          disabled={reports.length === 0}
-          className="h-9 rounded-xl text-xs font-semibold"
-        >
-          <Download className="mr-2 h-4 w-4" />
-          CSV
-        </Button>
-
-        <Button
-          variant="destructive"
-          onClick={deleteTodayData}
-          className="h-9 rounded-xl text-xs font-semibold"
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          {t("reports.deleteToday")}
-        </Button>
-      </div>
-    }
-  >
-    <div className="mx-auto w-full max-w-5xl space-y-4">
-      <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">{t("reports.title")}</h2>
-            <p className="mt-1 text-sm text-slate-600">{t("reports.realDataNote")}</p>
-          </div>
-
-          <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
-            <Calendar className="h-4 w-4 text-slate-500" />
-            <span className="text-sm font-medium text-slate-600">{filterTitle}</span>
-          </div>
-        </div>
-
-        <div className="mb-4 flex flex-wrap gap-2">
-          {FILTER_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              variant={filter === option.value ? "default" : "outline"}
-              className="h-9 whitespace-nowrap rounded-xl text-xs font-semibold"
-              onClick={() => setFilter(option.value)}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-[24px] bg-slate-900 p-4 text-white shadow-sm">
-            <div className="mb-2 flex items-center gap-2 text-sm text-slate-300">
-              <TrendingUp className="h-4 w-4" />
-              {t("reports.expectedTotal")}
-            </div>
-            <div className="text-xl font-bold">{formatCurrency(summary.expectedTotal)}</div>
-            <div className="mt-2 text-xs text-slate-400">
-              {reports.length} {t("reports.daysRecorded")}
-            </div>
-          </div>
-
-          <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-2 flex items-center gap-2 text-sm text-slate-500">
-              <Wallet className="h-4 w-4" />
-              {t("reports.receivedMoney")}
-            </div>
-            <div className="text-lg font-bold text-slate-900">
-              {formatCurrency(summary.receivedTotal)}
-            </div>
-          </div>
-
-          <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-2 flex items-center gap-2 text-sm text-slate-500">
-              <ReceiptText className="h-4 w-4" />
-              {t("reports.unpaidDebt")}
-            </div>
-            <div className="text-lg font-bold text-slate-900">
-              {formatCurrency(summary.unpaidDebt)}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="rounded-[24px] border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
-          {t("common.loading")}
-        </div>
-      ) : reports.length === 0 ? (
-        <div className="rounded-[24px] border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
-          {t("reports.noData")}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {reports.map((report) => (
-            <div
-              key={report.date}
-              className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm"
-            >
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-[15px] font-bold text-slate-900">
-                      {formatDateLabel(report.date)}
-                    </h3>
-                    {isToday(report.date) && (
-                      <span className="rounded-full bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-700">
-                        {t("reports.today")}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {t("reports.totalForDay")}: {formatCurrency(report.expectedTotal)}
-                  </p>
-                </div>
-
-                <div className="text-left sm:text-right">
-                  <div className="text-sm text-slate-500">{t("reports.receivedMoney")}</div>
-                  <div className="text-lg font-bold text-slate-900">
-                    {formatCurrency(report.receivedTotal)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <div className="text-xs text-slate-500">{t("reports.sales")}</div>
-                  <div className="mt-1 font-semibold text-slate-900">
-                    {formatCurrency(report.salesTotal)}
-                  </div>
-                </div>
-
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <div className="text-xs text-slate-500">{t("reports.newDebt")}</div>
-                  <div className="mt-1 font-semibold text-slate-900">
-                    {formatCurrency(report.newDebt)}
-                  </div>
-                </div>
-
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <div className="text-xs text-slate-500">{t("reports.debtPaid")}</div>
-                  <div className="mt-1 font-semibold text-slate-900">
-                    {formatCurrency(report.debtsPaid)}
-                  </div>
-                </div>
-
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <div className="text-xs text-slate-500">{t("reports.unpaidDebt")}</div>
-                  <div className="mt-1 font-semibold text-slate-900">
-                    {formatCurrency(report.unpaidDebt)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  </AppShell>
-);
 };
 
-export default ReportsPage;
+const formatTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+const SalesPage = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated, isLoading: authLoading, profile } = useAuth();
+
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [loadingInventory, setLoadingInventory] = useState(false);
+
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const [itemSearch, setItemSearch] = useState("");
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const selectorRef = useRef<HTMLDivElement>(null);
+
+  const [qty, setQty] = useState(1);
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const [todaySales, setTodaySales] = useState<SaleRecord[]>([]);
+  const [loadingSales, setLoadingSales] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) navigate("/");
+  }, [isAuthenticated, authLoading, navigate]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (selectorRef.current && !selectorRef.current.contains(e.target as Node)) {
+        setSelectorOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const fetchInventory = useCallback(async () => {
+    setLoadingInventory(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from("inventory_items")
+        .select("id, item_name, quantity, cost_price")
+        .order("item_name", { ascending: true });
+
+      if (error) throw error;
+
+      const rows = ((data ?? []) as Array<{
+        id: string;
+        item_name: string;
+        quantity: number;
+        cost_price: number;
+      }>).map((item) => ({
+        id: item.id,
+        item_name: item.item_name,
+        quantity: Number(item.quantity ?? 0),
+        cost_price: Number(item.cost_price ?? 0),
+        unit_price: Number(item.cost_price ?? 0),
+      }));
+      setInventory(rows.filter((item) => Number(item.quantity ?? 0) >= 0));
+    } catch (err) {
+      console.error("Fetch inventory error:", err);
+      toast.error("Gufata stock ya sales byanze.");
+      setInventory([]);
+    } finally {
+      setLoadingInventory(false);
+    }
+  }, []);
+
+  const fetchTodaySales = useCallback(async () => {
+    setLoadingSales(true);
+    try {
+      const { start, end } = todayRangeLocal();
+
+      const { data, error } = await (supabase as any)
+        .from("sales")
+        .select("id, item_name, quantity, sale_price, created_at")
+        .gte("created_at", start)
+        .lte("created_at", end)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      const rows = ((data ?? []) as Array<{
+        id: string;
+        item_name: string | null;
+        quantity: number;
+        sale_price: number;
+        created_at: string;
+      }>).map((sale) => {
+        const quantity = Number(sale.quantity ?? 0);
+        const unitPrice = Number(sale.sale_price ?? 0);
+        return {
+          id: sale.id,
+          item_name: sale.item_name,
+          quantity,
+          unit_price: unitPrice,
+          line_total: unitPrice * quantity,
+          created_at: sale.created_at,
+        };
+      });
+      setTodaySales(rows);
+    } catch (err) {
+      console.error("Fetch today sales error:", err);
+      setTodaySales([]);
+    } finally {
+      setLoadingSales(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      void fetchInventory();
+      void fetchTodaySales();
+    }
+  }, [isAuthenticated, fetchInventory, fetchTodaySales]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void fetchInventory();
+      void fetchTodaySales();
+    };
+
+    window.addEventListener("focus", refresh);
+    window.addEventListener("factoryReset", refresh as EventListener);
+    window.addEventListener("inventoryUpdated", refresh as EventListener);
+    window.addEventListener("newSaleRecorded", refresh as EventListener);
+
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("factoryReset", refresh as EventListener);
+      window.removeEventListener("inventoryUpdated", refresh as EventListener);
+      window.removeEventListener("newSaleRecorded", refresh as EventListener);
+    };
+  }, [fetchInventory, fetchTodaySales]);
+
+  const filteredItems = useMemo(() => {
+    const q = itemSearch.trim().toLowerCase();
+    if (!q) return inventory;
+    return inventory.filter((i) => i.item_name.toLowerCase().includes(q));
+  }, [inventory, itemSearch]);
+
+  const unitPrice = Number(selectedItem?.unit_price ?? 0);
+  const totalPrice = unitPrice * qty;
+  const maxQty = Number(selectedItem?.quantity ?? 0);
+  const stockOk = qty > 0 && qty <= maxQty && !!selectedItem;
+
+  const todayTotal = useMemo(
+    () => todaySales.reduce((sum, s) => sum + Number(s.line_total || 0), 0),
+    [todaySales]
+  );
+
+  const totalItemsSoldToday = useMemo(
+    () => todaySales.reduce((sum, s) => sum + Number(s.quantity || 0), 0),
+    [todaySales]
+  );
+
+  const handleSave = async () => {
+    if (!selectedItem) {
+      toast.error("Please select an item.");
+      return;
+    }
+
+    if (!Number.isInteger(qty) || qty <= 0) {
+      toast.error("Quantity must be at least 1.");
+      return;
+    }
+
+    if (qty > maxQty) {
+      toast.error(`Only ${maxQty} units available in stock.`);
+      return;
+    }
+
+    if (unitPrice < 0) {
+      toast.error("Invalid unit price.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const dateSold = nowIso.split("T")[0];
+      const saleUnitPrice = Number(selectedItem.cost_price ?? selectedItem.unit_price ?? 0);
+
+      const { error: saleError } = await (supabase as any).from("sales").insert({
+        item_name: selectedItem.item_name,
+        quantity: qty,
+        cost_price: saleUnitPrice,
+        sale_price: saleUnitPrice,
+        created_at: nowIso,
+        date_sold: dateSold,
+      });
+
+      if (saleError) throw saleError;
+
+      const newQty = Math.max(selectedItem.quantity - qty, 0);
+      const { error: inventoryError } = await (supabase as any)
+        .from("inventory_items")
+        .update({ quantity: newQty })
+        .eq("id", selectedItem.id);
+
+      if (inventoryError) throw inventoryError;
+
+      toast.success(
+        `Sale ibitswe neza - ${formatCurrency(totalPrice)}`
+      );
+
+      setSelectedItem(null);
+      setQty(1);
+      setNotes("");
+      setItemSearch("");
+      setSelectorOpen(false);
+
+      window.dispatchEvent(new CustomEvent("newSaleRecorded"));
+      window.dispatchEvent(new CustomEvent("inventoryUpdated"));
+
+      await Promise.all([fetchInventory(), fetchTodaySales()]);
+    } catch (err: any) {
+      console.error("Save sale error:", err);
+      toast.error(err?.message || "Failed to save sale. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <AppShell
+      title="Sales"
+      subtitle="Record paid sales"
+      showBack
+      showHome
+      contentClassName="pt-2 md:pt-3"
+      headerRight={
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            void fetchInventory();
+            void fetchTodaySales();
+          }}
+          className="h-9 rounded-xl text-xs font-semibold"
+        >
+          <RefreshCw size={14} className="mr-1.5" />
+          Refresh
+        </Button>
+      }
+    >
+      <div className="mx-auto w-full max-w-5xl space-y-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-[24px] bg-slate-900 p-4 text-white shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+              Today's Revenue
+            </p>
+            <p className="mt-2 text-2xl font-bold">{formatCurrency(todayTotal)}</p>
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Sales Today
+            </p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{todaySales.length}</p>
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Units Sold
+            </p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{totalItemsSoldToday}</p>
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Items In Stock
+            </p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">
+              {inventory.filter((i) => i.quantity > 0).length}
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900">
+              <ShoppingCart size={16} className="text-white" />
+            </div>
+            <h2 className="text-sm font-bold text-slate-900">New Sale</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div ref={selectorRef} className="relative">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Item
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setSelectorOpen((o) => !o)}
+                className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm transition hover:border-slate-300"
+              >
+                {selectedItem ? (
+                  <span className="flex items-center gap-2">
+                    <Package size={14} className="shrink-0 text-slate-400" />
+                    <span className="font-medium text-slate-900">{selectedItem.item_name}</span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        selectedItem.quantity > 5
+                          ? "bg-green-100 text-green-700"
+                          : selectedItem.quantity > 0
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-red-100 text-red-600"
+                      }`}
+                    >
+                      {selectedItem.quantity} left
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-slate-400">Select an item…</span>
+                )}
+
+                <ChevronDown
+                  size={16}
+                  className={`shrink-0 text-slate-400 transition-transform ${selectorOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {selectorOpen && (
+                <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                  <div className="border-b border-slate-100 p-2">
+                    <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
+                      <Search size={14} className="shrink-0 text-slate-400" />
+                      <input
+                        autoFocus
+                        value={itemSearch}
+                        onChange={(e) => setItemSearch(e.target.value)}
+                        placeholder="Search items…"
+                        className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                      />
+                      {itemSearch && (
+                        <button type="button" onClick={() => setItemSearch("")}>
+                          <X size={13} className="text-slate-400" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto">
+                    {loadingInventory ? (
+                      <p className="p-4 text-center text-xs text-slate-400">Loading…</p>
+                    ) : filteredItems.length === 0 ? (
+                      <p className="p-4 text-center text-xs text-slate-400">No items found.</p>
+                    ) : (
+                      filteredItems.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          disabled={item.quantity === 0}
+                          onClick={() => {
+                            setSelectedItem(item);
+                            setQty(1);
+                            setSelectorOpen(false);
+                            setItemSearch("");
+                          }}
+                          className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm transition ${
+                            item.quantity === 0
+                              ? "cursor-not-allowed opacity-40"
+                              : "hover:bg-slate-50"
+                          } ${selectedItem?.id === item.id ? "bg-blue-50" : ""}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Package size={13} className="shrink-0 text-slate-400" />
+                            <span className="font-medium text-slate-900">{item.item_name}</span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-right">
+                            <span className="text-xs font-semibold text-slate-600">
+                              {formatCurrency(Number(item.unit_price || 0))}
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                item.quantity > 5
+                                  ? "bg-green-100 text-green-700"
+                                  : item.quantity > 0
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-red-100 text-red-600"
+                              }`}
+                            >
+                              {item.quantity === 0 ? "Out of stock" : `${item.quantity} left`}
+                            </span>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {selectedItem && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Quantity
+                  </label>
+                  <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setQty((q) => Math.max(1, q - 1))}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm transition hover:bg-slate-100"
+                    >
+                      <Minus size={14} />
+                    </button>
+
+                    <input
+                      type="number"
+                      min={1}
+                      max={maxQty}
+                      value={qty}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (Number.isNaN(v)) {
+                          setQty(1);
+                          return;
+                        }
+                        setQty(Math.max(1, v));
+                      }}
+                      className="w-full bg-transparent text-center text-base font-bold text-slate-900 outline-none"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm transition hover:bg-slate-100"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+
+                  {qty > maxQty && (
+                    <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-red-600">
+                      <AlertCircle size={11} />
+                      Max {maxQty}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Unit Price
+                  </label>
+                  <div className="flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700">
+                    {formatCurrency(unitPrice)}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Total
+                  </label>
+                  <div
+                    className={`flex h-11 items-center rounded-xl border px-4 text-sm font-bold transition ${
+                      stockOk
+                        ? "border-green-200 bg-green-50 text-green-700"
+                        : "border-red-200 bg-red-50 text-red-600"
+                    }`}
+                  >
+                    {formatCurrency(totalPrice)}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={handleSave}
+              disabled={saving || !selectedItem || !stockOk}
+              className="h-12 w-full rounded-xl bg-slate-900 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {saving ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                <>
+                  <Check size={16} className="mr-2" />
+                  Save Sale
+                  {selectedItem && stockOk && (
+                    <span className="ml-2 rounded-lg bg-white/20 px-2 py-0.5 text-xs">
+                      {formatCurrency(totalPrice)}
+                    </span>
+                  )}
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50">
+                <CalendarDays size={16} className="text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-900">Today's Sales</p>
+                <p className="text-xs text-slate-500">
+                  {new Date().toLocaleDateString([], {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </p>
+              </div>
+            </div>
+
+            {todaySales.length > 0 && (
+              <div className="text-right">
+                <p className="text-[11px] font-medium text-slate-500">Total</p>
+                <p className="text-sm font-bold text-slate-900">{formatCurrency(todayTotal)}</p>
+              </div>
+            )}
+          </div>
+
+          {loadingSales ? (
+            <div className="p-8 text-center text-sm text-slate-400">Loading…</div>
+          ) : todaySales.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 p-10 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50">
+                <Receipt size={22} className="text-slate-300" />
+              </div>
+              <p className="text-sm font-medium text-slate-500">No sales recorded today yet.</p>
+              <p className="text-xs text-slate-400">Select an item above to record your first sale.</p>
+            </div>
+          ) : (
+            <>
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50 text-left">
+                      <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Item</th>
+                      <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Qty</th>
+                      <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Unit Price</th>
+                      <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total</th>
+                      <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {todaySales.map((sale) => (
+                      <tr key={sale.id} className="transition hover:bg-slate-50/50">
+                        <td className="px-4 py-3.5 font-medium text-slate-900">{sale.item_name ?? "—"}</td>
+                        <td className="px-4 py-3.5 text-right font-semibold text-slate-700">{sale.quantity}</td>
+                        <td className="px-4 py-3.5 text-right text-slate-600">{formatCurrency(Number(sale.unit_price || 0))}</td>
+                        <td className="px-4 py-3.5 text-right font-bold text-slate-900">{formatCurrency(Number(sale.line_total || 0))}</td>
+                        <td className="px-5 py-3.5 text-right text-xs text-slate-400">{formatTime(sale.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-slate-200 bg-slate-50">
+                      <td colSpan={3} className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Day Total
+                      </td>
+                      <td className="px-4 py-3 text-right text-base font-extrabold text-slate-900">
+                        {formatCurrency(todayTotal)}
+                      </td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <div className="divide-y divide-slate-100 md:hidden">
+                {todaySales.map((sale) => (
+                  <div key={sale.id} className="flex items-center gap-3 px-5 py-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100">
+                      <TrendingUp size={14} className="text-slate-500" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-bold text-slate-900">{sale.item_name ?? "—"}</p>
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {sale.quantity} × {formatCurrency(Number(sale.unit_price || 0))} • {formatTime(sale.created_at)}
+                      </p>
+                    </div>
+
+                    <p className="shrink-0 text-sm font-bold text-slate-900">
+                      {formatCurrency(Number(sale.line_total || 0))}
+                    </p>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between bg-slate-50 px-5 py-3.5">
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Day Total</span>
+                  <span className="text-base font-extrabold text-slate-900">{formatCurrency(todayTotal)}</span>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </AppShell>
+  );
+};
+
+export default SalesPage;

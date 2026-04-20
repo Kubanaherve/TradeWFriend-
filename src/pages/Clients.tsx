@@ -7,6 +7,7 @@ import { useI18n } from "@/contexts/LanguageContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { getErrorMessage } from "@/lib/errors";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 
@@ -64,7 +65,7 @@ const ClientsPage = () => {
       setClients(uniqueClients);
     } catch (error) {
       console.error("Fetch clients error:", error);
-      toast.error(t("clients.fetchFailed"));
+      toast.error(getErrorMessage(error, t("clients.fetchFailed")));
     } finally {
       setIsLoading(false);
     }

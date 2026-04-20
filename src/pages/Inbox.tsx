@@ -12,8 +12,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { getErrorMessage } from "@/lib/errors";
 import { formatCurrency, formatDate } from "@/lib/kinyarwanda";
 import { useBusinessSettings } from "@/hooks/useBusinessSettings";
+import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/LanguageContext";
 import {
   buildDebtAlerts,
@@ -47,6 +49,7 @@ type ParsedItem = {
 const InboxPage = () => {
   const navigate = useNavigate();
   const { settings: businessSettings } = useBusinessSettings();
+  const { profile } = useAuth();
   const { t } = useI18n();
 
   const [alerts, setAlerts] = useState<DebtAlert[]>([]);
@@ -78,7 +81,7 @@ const InboxPage = () => {
       await notifyDebtAlerts(builtAlerts);
     } catch (error) {
       console.error("Inbox alerts error:", error);
-      toast.error(t("inbox.fetchFailed"));
+      toast.error(getErrorMessage(error, t("inbox.fetchFailed")));
     } finally {
       setLoading(false);
     }
@@ -89,7 +92,7 @@ const InboxPage = () => {
   }, [fetchAlerts]);
 
   useEffect(() => {
-    notifyIfInactiveForTenHours(businessSettings.businessName);
+    notifyIfInactiveForTenHours(profile?.businessName || "Business");
     recordAppActivity();
 
     const refreshAlerts = () => {
@@ -108,7 +111,7 @@ const InboxPage = () => {
       window.removeEventListener("debtDeleted", refreshAlerts);
       window.removeEventListener("focus", refreshAlerts);
     };
-  }, [fetchAlerts, businessSettings.businessName]);
+  }, [fetchAlerts, profile?.businessName]);
 
   const openCustomerCard = (alert: DebtAlert) => {
     const customer = customersById[alert.customerId];
@@ -183,7 +186,7 @@ const InboxPage = () => {
     const message = [
       `${t("addDebt.debtNotificationGreeting")} ${customer.name || t("common.name")},`,
       "",
-      `${t("inbox.messageIntro")} ${businessSettings.businessName}.`,
+      `${t("inbox.messageIntro")} ${profile?.businessName || "Business"}.`,
       "",
       `${t("common.details")}:`,
       formattedItems,

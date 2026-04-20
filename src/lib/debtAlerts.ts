@@ -23,8 +23,8 @@ export interface DebtAlert {
   createdAt: string;
 }
 
-const NOTIFICATION_STORAGE_KEY = "tradewfriend_debt_alert_notifications";
-const LAST_ACTIVE_STORAGE_KEY = "tradewfriend_last_active_at";
+const NOTIFICATION_STORAGE_KEY = "businessledger_debt_alert_notifications";
+const LAST_ACTIVE_STORAGE_KEY = "businessledger_last_active_at";
 const TEN_HOURS_MS = 10 * 60 * 60 * 1000;
 
 const normalizeCustomerKey = (customer: DebtAlertCustomer) => {
@@ -188,7 +188,7 @@ export const recordAppActivity = () => {
   localStorage.setItem(LAST_ACTIVE_STORAGE_KEY, new Date().toISOString());
 };
 
-export const notifyIfInactiveForTenHours = async (businessName: string = "TradeWFriend+") => {
+export const notifyIfInactiveForTenHours = async (businessName: string = "") => {
   if (typeof window === "undefined" || !("Notification" in window)) {
     return;
   }

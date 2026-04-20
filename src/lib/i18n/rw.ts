@@ -1,7 +1,7 @@
 import type { TranslationDictionary } from "./index";
 export const rw: TranslationDictionary = {
   common: {
-    appName: "TradeWFriend+",
+    appName: "Curuza +",
     loading: "Gutegereza...",
     save: "Bika",
     saving: "Kubika...",
@@ -28,10 +28,12 @@ export const rw: TranslationDictionary = {
     success: "Byakunze",
     error: "Ikosa",
     warning: "Iburira",
+    date: "Itariki",
+    name: "Izina",
   },
 
   auth: {
-    title: "TradeWFriend+",
+    title: "Curuza +",
     subtitle: "Porogaramu y'ubucuruzi bwiza",
     checking: "Birimo gutegurwa...",
     chooseAccount: "Hitamo konti",
@@ -42,9 +44,9 @@ export const rw: TranslationDictionary = {
     signIn: "Injira",
     createOwnerAccount: "Fungura konti ya owner",
     ownerName: "Izina rya owner",
-    ownerNamePlaceholder: "Urugero: Friend",
+    ownerNamePlaceholder: "Urugero: Jean Doe",
     businessName: "Izina ry'ubucuruzi",
-    businessNamePlaceholder: "Urugero: TradeWFriend Shop",
+    businessNamePlaceholder: "Urugero: Iduka ryanjye",
     phoneNumber: "Numero ya telefone",
     phonePlaceholder: "07XXXXXXXX",
     pin: "PIN",
@@ -71,6 +73,7 @@ export const rw: TranslationDictionary = {
     totalUnpaid: "Ideni ryose ritarishyurwa",
     totalCustomers: "Abakiriya bose",
     todaySales: "Ibyo wacuruje uyu munsi",
+    todayRevenue: "Amafaranga yinjijwe uyu munsi",
     todayDebt: "Ideni watanze uyu munsi",
     totalSales: "Ibyo wacuruje byose",
     target: "Intego yawe",
@@ -92,7 +95,9 @@ export const rw: TranslationDictionary = {
     dashboard: "Dashboard",
     addDebt: "Ongeraho ideni",
     debtList: "Urutonde rw'amadeni",
+    sales: "Sales",
     salesTracking: "Sales",
+    reports: "Raporo",
     inventory: "Stock",
     customers: "Abakiriya",
     messages: "Ubutumwa",
@@ -224,6 +229,18 @@ debts: {
     active: "Iri gukora",
     disabled: "Yahagaritswe",
     disableEmployee: "Hagarika umukozi",
+    totalEmployees: "Abakozi bose",
+    activeEmployees: "Abakozi bakora",
+    addEmployeeHelp: "Kora konti y'umukozi ifite numero ya telefone na PIN y'imibare 6",
+    employeeNamePlaceholder: "Izina ry'umukozi",
+    pinPlaceholder: "PIN y'imibare 6",
+    enterName: "Andika izina ry'umukozi",
+    fetchFailed: "Gufata abakozi byanze",
+    createFailed: "Gukora konti y'umukozi byanze",
+    confirmDisable: "Ushaka guhagarika iyi konti y'umukozi ya",
+    ownerNotFound: "Konti ya owner ntiboneka",
+    phoneAlreadyExists: "Iyi numero isanzwe ifite konti y'umukozi",
+    pinSixDigits: "PIN igomba kuba imibare 6 neza",
     disableConfirm: "Ushaka guhagarika iyi konti y'umukozi?",
     ownerOnly: "Owner gusa ni we wemerewe gucunga abakozi",
     ownerMissing: "Konti ya owner ntiboneka",
@@ -232,6 +249,45 @@ debts: {
 
   sales: {
     title: "Sales",
+    subtitle: "Andika sales zishyuwe",
+    refresh: "Ongera ufate amakuru",
+    todayRevenue: "Amafaranga yinjijwe uyu munsi",
+    salesToday: "Sales z'uyu munsi",
+    unitsSold: "Units zacurujwe",
+    itemsInStock: "Ibintu biri muri stock",
+    newSale: "Sale nshya",
+    item: "Ikintu",
+    itemPlaceholder: "Hitamo ikintu...",
+    searchItemsPlaceholder: "Shakisha ibintu...",
+    noItemsFound: "Nta kintu cyabonetse.",
+    outOfStock: "Ntikiboneka muri stock",
+    leftSuffix: "bisigaye",
+    quantity: "Umubare",
+    unitPrice: "Igiciro kuri kimwe",
+    total: "Igiteranyo",
+    notesOptional: "Icyitonderwa (si ngombwa)",
+    notesPlaceholder: "urugero: cash, izina ry'umukiriya...",
+    saveSale: "Bika sale",
+    todaySalesTitle: "Sales z'uyu munsi",
+    noSalesToday: "Nta sale irandikwa uyu munsi.",
+    firstSaleHint: "Hitamo ikintu hejuru wandike sale ya mbere.",
+    saleNumber: "Nomero ya sale",
+    itemColumn: "Ikintu",
+    qtyShort: "Qty",
+    time: "Igihe",
+    dayTotal: "Igiteranyo cy'umunsi",
+    dashboardTipTitle: "Inama ya Dashboard",
+    dashboardTipBody:
+      "Kugira ngo dashboard yerekane total revenue (sales + debt payments), teranya table ya sales na debt_payments hanyuma uhindure izina rya card ribe Total Revenue.",
+    selectItemError: "Banza uhitemo ikintu.",
+    quantityMinError: "Quantity igomba kuba nibura 1.",
+    invalidUnitPrice: "Igiciro kuri kimwe si cyo.",
+    saveFailed: "Kubika sale byanze. Ongera ugerageze.",
+    savedSuffix: "yabitswe",
+    loadFailed: "Gufata stock ya sales byanze.",
+    onlyUnitsAvailablePrefix: "Hasigaye",
+    onlyUnitsAvailableSuffix: "muri stock.",
+    maxPrefix: "Max",
     reportTitle: "Raporo y'amafaranga",
     todayOnly: "Uyu munsi",
     thisWeek: "Iki cyumweru",
@@ -259,8 +315,16 @@ debts: {
   title: "Stock",
   subtitle: "Cunga stock yawe neza kandi mu buryo bugaragara",
   fetchFailed: "Habaye ikosa mu gufata stock.",
+  loadFailed: "Habaye ikosa mu gufata stock.",
   imageUploaded: "Ifoto yashyizweho neza.",
   imageUploadFailed: "Gushyiraho ifoto byanze.",
+  barcodeMatched: "Ikintu cyabonetse",
+  barcodeDetectedNoMatch: "Barcode yabonetse ariko nta kintu gihuye na yo cyabonetse",
+  barcodeScannerFailed: "Ntibyashobotse gufungura scanner ya barcode",
+  barcodeScannerUnsupported: "Scanner ntikora kuri iki gikoresho",
+  pointCameraToBarcode: "Erekana camera kuri barcode",
+  scanBarcode: "Sikana barcode",
+  scannerReady: "Scanner yiteguye",
   fillAllFields: "Uzuza ahasabwa hose neza.",
   invalidValues: "Quantity na cost bigomba kuba imibare nyayo.",
   itemAdded: "Ikintu cyongeweho neza.",
@@ -379,6 +443,7 @@ inbox: {
   payment: {
     title: "Ubwishyu",
     recordPayment: "Andika ubwishyu",
+    unitPrice: "Igiciro kuri kimwe",
     amountToPay: "Amafaranga yo kwishyura",
     confirmPayment: "Emeza ubwishyu",
     paymentSuccess: "Ubwishyu bwanditswe neza",
@@ -391,6 +456,13 @@ inbox: {
     debtReminder: "Kwibutsa ideni",
     paymentReminder: "Kwibutsa kwishyura",
     fullDebtReport: "Raporo yuzuye y'ideni",
+    professionalGreeting: "Muraho",
+    professionalDebtIntro: "Dore incamake y'ideni mufitiye",
+    professionalDebtItemsTitle: "Ibintu byafatiwe ku ideni",
+    professionalDebtClosing: "Mwongere murebe neza mutubwire niba hari icyo gukosora. Murakoze.",
+    downloadCustomerPdf: "Manura PDF y'umukiriya",
+    customerPdfDownloaded: "PDF y'umukiriya yamanutse neza",
+    customerPdfFailed: "Gukora PDF y'umukiriya byanze",
     sendWhatsapp: "Ohereza kuri WhatsApp",
     sendSms: "Ohereza SMS",
     phoneOnly: "Iki gikorwa gikora kuri telefone gusa",
@@ -417,12 +489,29 @@ inbox: {
   install: {
     title: "Shyira app kuri telefone",
     subtitle: "Shyira iyi app ku gikoresho cyawe",
+    installedTitle: "App yamaze ku-installwa!",
+    installedHint: "Ushobora kuyifungura kuri home screen",
+    iosTitle: "Kuri iPhone/iPad:",
+    androidTitle: "Kuri Android:",
+    installButton: "Shyira App",
+    back: "Subira inyuma",
+    stepOne: "Kanda kuri buto ya Share",
+    stepTwo: "Manukamo uhitemo Add to Home Screen",
+    stepThree: "Kanda Add",
+    androidStepOne: "Fungura menu ya browser",
+    androidStepTwo: "Hitamo Install app cyangwa Add to Home screen",
+    androidStepThree: "Kanda Install",
+    featuresTitle: "Ibyiza bya app:",
+    featureOffline: "Ikora offline",
+    featureFast: "Yihuse nka app ya nyayo",
+    featureData: "Nta data nyinshi isaba",
   },
 
   notFound: {
     title: "Page ntiboneka",
     subtitle: "Page ushaka ntabwo ibaho",
     backHome: "Garuka ahabanza",
+    oops: "Oops! Page ntiboneka",
   },
 
   errors: {
@@ -442,3 +531,46 @@ inbox: {
     deleted: "Byasibwe neza",
   },
 } 
+
+export const labels = {
+smsTemplates: {
+
+    debtConfirmation:
+
+      "Muraho {customerName}. Murakoze kugura kuri {enterpriseName}. Mwafashe {items}. Amafaranga yose ni {amount} FRW{dueDatePart}. Murakoze.",
+
+    paymentThankYou:
+
+      "Muraho {customerName}. {enterpriseName} ibashimiye ko mwishyuye {amount} FRW. Murakoze ku bwizerane bwanyu.",
+
+    partialPaymentThankYou:
+
+      "Muraho {customerName}. Murakoze kwishyura {paidAmount} FRW kuri {enterpriseName}. Hasigaye {remainingAmount} FRW.",
+
+    paymentReminder:
+
+      "Muraho {customerName}. Turabibutsa ko musigayemo kwishyura {amount} FRW kuri {enterpriseName}{dueDatePart}. Murakoze.",
+
+    overdueReminder:
+
+      "Muraho {customerName}. Ubwishyu bwa {amount} FRW kuri {enterpriseName} buracyategerejwe. Turabasaba kubukora vuba. Murakoze.",
+
+    cashThankYou:
+
+      "Muraho {customerName}. Murakoze kugura {items} kuri {enterpriseName}. Mwishyuye {amount} FRW. Murakoze.",
+
+    generalThankYou:
+
+      "Muraho {customerName}. Murakoze gukorana na {enterpriseName}. Twishimiye kubakorera.",
+
+    paymentRequest:
+
+      "Muraho {customerName}. Murabwirwa ko hari ubwishyu bwa {amount} FRW bugitegerejwe kuri {enterpriseName}. Turabasaba kubwishyura vuba. Murakoze.",
+
+    dueDatePart: ". Itariki yo kwishyura ni {dueDate}",
+
+    noDueDatePart: "",
+
+  },
+
+} as const;

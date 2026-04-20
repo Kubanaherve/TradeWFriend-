@@ -10,19 +10,20 @@ import { Suspense, lazy, type ReactNode } from "react";
 import { LanguageProvider } from "./contexts/LanguageContext";
 
 // Lazy loading pages for performance
-const AuthPage = lazy(() => import("./pages/Auth"));
-const DashboardPage = lazy(() => import("./pages/Dashboard"));
-const AddDebtPage = lazy(() => import("./pages/AddDebt"));
-const DebtsPage = lazy(() => import("./pages/Debts"));
-const SalesPage = lazy(() => import("./pages/Sales"));
-const InventoryPage = lazy(() => import("./pages/Inventory"));
-const InstallPage = lazy(() => import("./pages/Install"));
-const ClientsPage = lazy(() => import("./pages/Clients"));
-const InboxPage = lazy(() => import("./pages/Inbox"));
-const SettingsPage = lazy(() => import("./pages/Settings"));
-const EmployeesPage = lazy(() => import("./pages/Employees"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const OwnerRoute = lazy(() => import("./components/OwnerRoute"));
+const AuthPage       = lazy(() => import("./pages/Auth"));
+const DashboardPage  = lazy(() => import("./pages/Dashboard"));
+const AddDebtPage    = lazy(() => import("./pages/AddDebt"));
+const DebtsPage      = lazy(() => import("./pages/Debts"));
+const SalesPage      = lazy(() => import("./pages/Sales"));     // NEW POS sales page
+const ReportsPage    = lazy(() => import("./pages/Reports"));   // renamed from old Sales page
+const InventoryPage  = lazy(() => import("./pages/Inventory"));
+const InstallPage    = lazy(() => import("./pages/Install"));
+const ClientsPage    = lazy(() => import("./pages/Clients"));
+const InboxPage      = lazy(() => import("./pages/Inbox"));
+const SettingsPage   = lazy(() => import("./pages/Settings"));
+const EmployeesPage  = lazy(() => import("./pages/Employees"));
+const NotFound       = lazy(() => import("./pages/NotFound"));
+const OwnerRoute     = lazy(() => import("./components/OwnerRoute"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,8 +63,11 @@ const AppRoutes = () => {
       }
     >
       <Routes>
-        <Route path="/" element={<AuthPage />} />
+        {/* Public */}
+        <Route path="/"        element={<AuthPage />} />
+        <Route path="/install" element={<InstallPage />} />
 
+        {/* Protected — all roles */}
         <Route
           path="/dashboard"
           element={
@@ -97,12 +101,23 @@ const AppRoutes = () => {
           }
         />
 
+        {/* Protected — owner only */}
         <Route
           path="/sales"
           element={
             <ProtectedRoute>
               <OwnerRoute>
                 <SalesPage />
+              </OwnerRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute>
+              <OwnerRoute>
+                <ReportsPage />
               </OwnerRoute>
             </ProtectedRoute>
           }
@@ -148,7 +163,7 @@ const AppRoutes = () => {
           }
         />
 
-        <Route path="/install" element={<InstallPage />} />
+        {/* Catch-all */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

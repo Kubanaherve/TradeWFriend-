@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { Save, RotateCcw, AlertTriangle, Crown, Users } from "lucide-react";
+import { Save, RotateCcw, AlertTriangle, Crown, Users, Globe } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
+import { getErrorMessage } from "@/lib/errors";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/LanguageContext";
 import type { AppLanguage } from "@/lib/i18n";
 import AppShell from "@/components/layout/AppShell";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type BusinessSettings = {
   businessName: string;
@@ -29,7 +31,7 @@ const SETTING_KEYS = {
 const Settings = () => {
   const navigate = useNavigate();
   const auth = useAuth();
-  const { language, setLanguage, t } = useI18n();
+  const { language, setLanguage } = useI18n();
 
   const [settings, setSettings] = useState<BusinessSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
@@ -77,23 +79,23 @@ const Settings = () => {
         });
       } catch (error) {
         console.error("Failed to load settings:", error);
-        toast.error(t("errors.loadFailed"));
+        toast.error("Failed to load settings");
       } finally {
         setLoading(false);
       }
     };
 
     void loadSettings();
-  }, [businessNameFromProfile, canUsePage, t]);
+  }, [businessNameFromProfile, canUsePage]);
 
   const handleSave = async () => {
     if (!isOwner) {
-      toast.error(t("errors.noPermission"));
+      toast.error("Permission denied");
       return;
     }
 
     if (!settings.businessName.trim()) {
-      toast.error(t("errors.requiredField"));
+      toast.error("Business name is required");
       return;
     }
 
@@ -120,7 +122,7 @@ const Settings = () => {
       if (upsertResponse.error) throw upsertResponse.error;
 
       if (ownerIdentifier) {
-        const employeeUpdateResponse = await (supabase as any)
+        const employeeUpdateResponse = await supabase
           .from("employees")
           .update({
             business_name: settings.businessName.trim(),
@@ -141,64 +143,61 @@ const Settings = () => {
       }
 
       await auth.refreshProfile();
-      toast.success(t("settings.settingsSaved"));
+      toast.success("Settings saved successfully");
     } catch (error) {
       console.error("Error saving settings:", error);
-      toast.error(t("settings.saveFailed"));
+      toast.error("Failed to save settings");
     } finally {
       setSaving(false);
     }
   };
-const handleFactoryReset = async () => {
-  if (!isOwner) {
-    toast.error(t("errors.noPermission"));
-    return;
-  }
 
-  const confirmed = window.confirm(t("settings.factoryResetConfirm"));
-  if (!confirmed) return;
+  const handleFactoryReset = async () => {
+    if (!isOwner) {
+      toast.error("Permission denied");
+      return;
+    }
 
-  setClearing(true);
+    const confirmed = window.confirm("This will permanently delete all data. Are you sure?");
+    if (!confirmed) return;
 
-  try {
-    const { error } = await supabase.rpc("factory_reset_app");
+    setClearing(true);
 
-    if (error) throw error;
+    try {
+      const { error } = await (supabase as any).rpc("factory_reset_app");
 
-    setSettings((prev) => ({
-      ...prev,
-      initialCapital: 0,
-      targetCapital: 0,
-    }));
+      if (error) throw error;
 
-    window.dispatchEvent(new CustomEvent("newDebtAdded"));
-    window.dispatchEvent(new CustomEvent("paymentMade"));
-    window.dispatchEvent(new CustomEvent("debtDeleted"));
-    window.dispatchEvent(new CustomEvent("clientDeleted"));
-    window.dispatchEvent(new CustomEvent("factoryReset"));
-    window.dispatchEvent(new CustomEvent("inventoryUpdated"));
-    window.dispatchEvent(new CustomEvent("salesUpdated"));
+      setSettings((prev) => ({
+        ...prev,
+        initialCapital: 0,
+        targetCapital: 0,
+      }));
 
-    toast.success(t("settings.factoryResetDone"));
-    navigate("/dashboard", { replace: true });
-  } catch (error) {
-    console.error("Error during factory reset:", error);
-    toast.error(t("settings.factoryResetFailed"));
-  } finally {
-    setClearing(false);
-  }
-};
+      window.dispatchEvent(new CustomEvent("newDebtAdded"));
+      window.dispatchEvent(new CustomEvent("paymentMade"));
+      window.dispatchEvent(new CustomEvent("debtDeleted"));
+      window.dispatchEvent(new CustomEvent("clientDeleted"));
+      window.dispatchEvent(new CustomEvent("factoryReset"));
+      window.dispatchEvent(new CustomEvent("inventoryUpdated"));
+      window.dispatchEvent(new CustomEvent("salesUpdated"));
+
+      toast.success("Factory reset completed");
+      navigate("/dashboard", { replace: true });
+    } catch (error) {
+      console.error("Error during factory reset:", error);
+      toast.error("Factory reset failed");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   if (auth.isLoading || loading) {
     return (
-      <AppShell
-        title={t("settings.title")}
-        subtitle={t("settings.subtitle")}
-        showBack
-        showHome
-        contentClassName="pt-2 md:pt-3"
-      >
-        <div className="mx-auto max-w-md rounded-[24px] bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
-          <p className="text-sm text-slate-500">{t("common.loading")}</p>
+      <AppShell>
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="text-gray-600 mt-2">Loading settings...</p>
         </div>
       </AppShell>
     );
@@ -206,15 +205,9 @@ const handleFactoryReset = async () => {
 
   if (!canUsePage) {
     return (
-      <AppShell
-        title={t("settings.title")}
-        subtitle={t("settings.subtitle")}
-        showBack
-        showHome
-        contentClassName="pt-2 md:pt-3"
-      >
-        <div className="mx-auto max-w-md rounded-[24px] bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
-          <p className="text-sm text-slate-500">{t("errors.loadFailed")}</p>
+      <AppShell>
+        <div className="text-center py-8">
+          <p className="text-gray-600">Unable to load settings</p>
         </div>
       </AppShell>
     );
@@ -222,183 +215,170 @@ const handleFactoryReset = async () => {
 
   if (!isOwner) {
     return (
-      <AppShell
-        title={t("settings.title")}
-        subtitle={t("settings.ownerOnlySection")}
-        showBack
-        showHome
-        contentClassName="pt-2 md:pt-3"
-      >
-        <div className="mx-auto max-w-md rounded-[24px] bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
-          <div className="mb-4 flex justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-[18px] bg-gradient-to-br from-slate-900 to-blue-900 shadow-sm">
-              <img
-                src={logo}
-                alt={t("common.appName")}
-                className="h-10 w-10 object-contain"
-              />
-            </div>
-          </div>
-
-          <h1 className="mb-2 text-xl font-bold text-slate-900">{t("settings.title")}</h1>
-          <p className="mb-6 text-sm text-slate-500">{t("settings.employeeRestriction")}</p>
-
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard")}
-            className="h-11 w-full rounded-2xl border border-slate-300 bg-white text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
-          >
-            {t("settings.backToDashboard")}
-          </button>
+      <AppShell>
+        <div className="text-center py-12">
+          <Crown className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Settings</h1>
+          <p className="text-gray-600 mb-6">Only business owners can access settings.</p>
+          <Button onClick={() => navigate("/dashboard")}>
+            Back to Dashboard
+          </Button>
         </div>
       </AppShell>
     );
   }
 
   return (
-    <AppShell
-      title={t("settings.title")}
-      subtitle={t("settings.subtitle")}
-      showBack
-      showHome
-      contentClassName="pt-2 md:pt-3"
-    >
-      <div className="mx-auto w-full max-w-4xl space-y-4">
-        <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-4 flex items-center gap-2">
-            <Crown size={16} className="text-amber-600" />
-            <h2 className="text-sm font-bold text-slate-900">
-              {t("settings.businessSettings")}
-            </h2>
+    <AppShell>
+      <div className="max-w-4xl mx-auto p-4 space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+          <p className="text-gray-600 mt-1">Manage your business configuration</p>
+        </div>
+
+        {/* Business Settings */}
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Crown className="h-5 w-5 text-amber-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Business Settings</h2>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Business Name *
+                </label>
+                <Input
+                  value={settings.businessName}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      businessName: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter your business name"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  This name will appear on all customer communications and reports
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Initial Capital
+                  </label>
+                  <Input
+                    type="number"
+                    value={settings.initialCapital}
+                    onChange={(e) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        initialCapital: Number(e.target.value) || 0,
+                      }))
+                    }
+                    placeholder="0"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Target Capital
+                  </label>
+                  <Input
+                    type="number"
+                    value={settings.targetCapital}
+                    onChange={(e) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        targetCapital: Number(e.target.value) || 0,
+                      }))
+                    }
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full sm:w-auto"
+              >
+                {saving ? "Saving..." : "Save Settings"}
+              </Button>
+            </div>
           </div>
+        </div>
 
-          <p className="mb-4 text-sm text-slate-500">{t("settings.subtitle")}</p>
-
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                {t("settings.businessName")}
-              </label>
-              <input
-                value={settings.businessName}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    businessName: e.target.value,
-                  }))
-                }
-                placeholder={t("settings.businessName")}
-                className="h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-slate-500"
-              />
+        {/* Employee Management */}
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="h-5 w-5 text-blue-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Employee Management</h2>
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                {t("settings.initialCapital")}
-              </label>
-              <input
-                type="number"
-                value={settings.initialCapital}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    initialCapital: Number(e.target.value) || 0,
-                  }))
-                }
-                placeholder="0"
-                className="h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-slate-500"
-              />
-            </div>
+            <p className="text-gray-600 mb-4">
+              Manage employees and their access to the system
+            </p>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                {t("settings.targetCapital")}
-              </label>
-              <input
-                type="number"
-                value={settings.targetCapital}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    targetCapital: Number(e.target.value) || 0,
-                  }))
-                }
-                placeholder="0"
-                className="h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-slate-500"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+            <Button
+              onClick={() => navigate("/employees")}
+              variant="outline"
+              className="w-full sm:w-auto"
             >
-              <Save size={16} />
-              {saving ? t("common.saving") : t("settings.saveSettings")}
-            </button>
+              Manage Employees
+            </Button>
           </div>
         </div>
 
-        <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-4 flex items-center gap-2">
-            <Users size={16} className="text-blue-600" />
-            <h2 className="text-sm font-bold text-slate-900">
-              {t("settings.employeeManagement")}
-            </h2>
+        {/* Language Settings */}
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Globe className="h-5 w-5 text-green-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Language</h2>
+            </div>
+
+            <p className="text-gray-600 mb-4">
+              Choose your preferred language
+            </p>
+
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as AppLanguage)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
+            >
+              <option value="rw">Kinyarwanda</option>
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+            </select>
           </div>
-
-          <p className="mb-4 text-sm text-slate-500">{t("employees.subtitle")}</p>
-
-          <button
-            type="button"
-            onClick={() => navigate("/employees")}
-            className="h-11 w-full rounded-2xl border border-slate-300 bg-white text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
-          >
-            {t("settings.manageEmployees")}
-          </button>
         </div>
 
-        <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-4 flex items-center gap-2">
-            <span className="text-base">🌐</span>
-            <h2 className="text-sm font-bold text-slate-900">
-              {t("settings.language")}
-            </h2>
+        {/* Danger Zone */}
+        <div className="bg-red-50 rounded-lg border border-red-200 shadow-sm">
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <h2 className="text-lg font-semibold text-red-900">Danger Zone</h2>
+            </div>
+
+            <p className="text-red-700 mb-4">
+              Factory reset will permanently delete all business data. This action cannot be undone.
+            </p>
+
+            <Button
+              onClick={handleFactoryReset}
+              disabled={clearing}
+              variant="destructive"
+              className="w-full sm:w-auto"
+            >
+              {clearing ? "Resetting..." : "Factory Reset"}
+            </Button>
           </div>
-
-          <p className="mb-4 text-sm text-slate-500">{t("settings.chooseLanguage")}</p>
-
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value as AppLanguage)}
-            className="h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-slate-500"
-          >
-            <option value="rw">Kinyarwanda</option>
-            <option value="en">English</option>
-            <option value="fr">Français</option>
-          </select>
-        </div>
-
-        <div className="rounded-[24px] border border-red-200 bg-red-50 p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-2">
-            <AlertTriangle size={16} className="text-red-600" />
-            <h2 className="text-sm font-bold text-red-700">
-              {t("settings.dangerZone")}
-            </h2>
-          </div>
-
-          <p className="mb-4 text-sm text-red-700/80">{t("settings.factoryResetConfirm")}</p>
-
-          <button
-            type="button"
-            onClick={handleFactoryReset}
-            disabled={clearing}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-red-600 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
-          >
-            <RotateCcw size={16} />
-            {clearing ? t("common.loading") : t("settings.factoryReset")}
-          </button>
         </div>
       </div>
     </AppShell>

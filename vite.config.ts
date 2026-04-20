@@ -24,8 +24,8 @@ export default defineConfig(({ mode }) => ({
         registerType: "autoUpdate",
         includeAssets: ["favicon.ico", "logo.png"],
         manifest: {
-          name: "TradeWFriend+",
-          short_name: "TradeWFriend+",
+          name: "Curuza +",
+          short_name: "Curuza +",
           description: "Track your business transactions and inventory",
           theme_color: "#1e3a5f",
           background_color: "#f8f6f3",

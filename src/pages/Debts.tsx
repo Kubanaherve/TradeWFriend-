@@ -151,32 +151,27 @@ const DebtsPage = () => {
   };
 
   const openExternal = (url: string) => {
-    const opened = window.open(url, "_blank", "noopener,noreferrer");
-    if (!opened) {
-      window.location.href = url;
+    try {
+      const opened = window.open(url, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        toast.error("Failed to open WhatsApp.");
+      }
+    } catch (error) {
+      console.error("Failed to open URL:", error);
+      toast.error("Failed to open WhatsApp.");
     }
   };
 
   const openWhatsAppSmart = useCallback(
-    async (phone: string, message: string) => {
+    (phone: string, message: string) => {
       const cleanPhone = normalizeWhatsappPhone(phone);
       const encodedMessage = encodeURIComponent(message);
-
-      const appUrl = `whatsapp://send?phone=${cleanPhone}&text=${encodedMessage}`;
       const webUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
 
-      await copyText(message);
+      // Copy message to clipboard
+      void copyText(message);
 
-      if (isMobileDevice()) {
-        window.location.href = appUrl;
-
-        window.setTimeout(() => {
-          openExternal(webUrl);
-        }, 1200);
-
-        return;
-      }
-
+      // Open WhatsApp externally
       openExternal(webUrl);
     },
     []
@@ -1673,7 +1668,8 @@ const DebtsPage = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    void openWhatsAppSmart(whatsAppPrompt.phone, whatsAppPrompt.message);
+                    closeWhatsAppPrompt();
+                    openWhatsAppSmart(whatsAppPrompt.phone, whatsAppPrompt.message);
                   }}
                   className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 text-sm font-semibold text-white hover:bg-green-700"
                 >

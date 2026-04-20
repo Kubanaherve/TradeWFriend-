@@ -106,9 +106,7 @@ const AppRoutes = () => {
           path="/sales"
           element={
             <ProtectedRoute>
-              <OwnerRoute>
-                <SalesPage />
-              </OwnerRoute>
+              <SalesPage />
             </ProtectedRoute>
           }
         />

@@ -26,6 +26,8 @@ import {
   Download,
   Copy,
   ExternalLink,
+  MessageSquare,
+  Smartphone,
 } from "lucide-react";
 import AppShell from "@/components/layout/AppShell";
 
@@ -80,10 +82,11 @@ type CustomerLedger = {
   lastDebtDate: string | null;
 };
 
-type WhatsAppPromptState = {
+type MessagePromptState = {
   open: boolean;
   phone: string;
   message: string;
+  channel: "whatsapp" | "sms";
 };
 
 const DebtsPage = () => {
@@ -101,10 +104,11 @@ const DebtsPage = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [downloadingCustomerId, setDownloadingCustomerId] = useState<string | null>(null);
-  const [whatsAppPrompt, setWhatsAppPrompt] = useState<WhatsAppPromptState>({
+  const [messagePrompt, setMessagePrompt] = useState<MessagePromptState>({
     open: false,
     phone: "",
     message: "",
+    channel: "whatsapp",
   });
 
   const actorIdentifier = profile?.phone ?? "";
@@ -119,10 +123,7 @@ const DebtsPage = () => {
     accept: { "text/csv": [".csv"] },
   };
 
-  const isMobileDevice = () =>
-    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-  const normalizeWhatsappPhone = (phone: string) => {
+  const normalizePhoneForRw = (phone: string) => {
     let cleanPhone = phone.replace(/[^\d+]/g, "");
 
     if (cleanPhone.startsWith("+")) {
@@ -130,9 +131,9 @@ const DebtsPage = () => {
     }
 
     if (cleanPhone.startsWith("0")) {
-      cleanPhone = "250" + cleanPhone.slice(1);
+      cleanPhone = `250${cleanPhone.slice(1)}`;
     } else if (!cleanPhone.startsWith("250")) {
-      cleanPhone = "250" + cleanPhone;
+      cleanPhone = `250${cleanPhone}`;
     }
 
     return cleanPhone;
@@ -150,32 +151,52 @@ const DebtsPage = () => {
     }
   };
 
-  const openExternal = (url: string) => {
+  const openExternal = (url: string, errorMessage: string) => {
     try {
       const opened = window.open(url, "_blank", "noopener,noreferrer");
       if (!opened) {
-        toast.error("Failed to open WhatsApp.");
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error("Failed to open URL:", error);
-      toast.error("Failed to open WhatsApp.");
+      toast.error(errorMessage);
     }
   };
 
-  const openWhatsAppSmart = useCallback(
-    (phone: string, message: string) => {
-      const cleanPhone = normalizeWhatsappPhone(phone);
-      const encodedMessage = encodeURIComponent(message);
-      const webUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+  const isIOS = () => /iPad|iPhone|iPod/i.test(navigator.userAgent);
 
-      // Copy message to clipboard
-      void copyText(message);
+  const buildSmsUrl = (phone: string, message: string) => {
+    const cleanPhone = normalizePhoneForRw(phone);
+    const encodedMessage = encodeURIComponent(message);
 
-      // Open WhatsApp externally
-      openExternal(webUrl);
-    },
-    []
-  );
+    // iOS can be picky with separators in sms links.
+    // This version works better across many devices.
+    return isIOS()
+      ? `sms:${cleanPhone}&body=${encodedMessage}`
+      : `sms:${cleanPhone}?body=${encodedMessage}`;
+  };
+
+  const openWhatsAppSmart = useCallback(async (phone: string, message: string) => {
+    const cleanPhone = normalizePhoneForRw(phone);
+    const encodedMessage = encodeURIComponent(message);
+    const webUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+
+    await copyText(message);
+    openExternal(webUrl, "Failed to open WhatsApp.");
+  }, []);
+
+  const openSmsSmart = useCallback(async (phone: string, message: string) => {
+    const smsUrl = buildSmsUrl(phone, message);
+
+    await copyText(message);
+
+    try {
+      window.location.href = smsUrl;
+    } catch (error) {
+      console.error("Failed to open SMS:", error);
+      toast.error("Failed to open SMS app.");
+    }
+  }, []);
 
   const buildDebtReportMessage = useCallback(
     (customer: CustomerLedger) => {
@@ -191,14 +212,14 @@ const DebtsPage = () => {
                   `   ${t("debts.takenDate") || "Taken Date"}: ${formatDate(item.date_taken)}`
               )
               .join("\n\n")
-          : (t("debts.noItemsRecorded") || "No items recorded");
+          : t("debts.noItemsRecorded") || "No items recorded";
 
       return [
         `Hello ${customer.name},`,
         "",
-        `Here is your debt statement from ${profile?.businessName || "Business"}.`,
+        `Here is your debt statement from ${profile?.businessName || businessSettings?.businessName || "Business"}.`,
         "",
-        `Items taken:`,
+        "Items taken:",
         itemLines,
         "",
         `${t("debts.totalDebtTaken") || "Total Debt"}: ${formatCurrency(customer.totalDebt)}`,
@@ -208,12 +229,12 @@ const DebtsPage = () => {
           ? `${t("debts.dueDate") || "Due Date"}: ${formatDate(customer.due_date)}`
           : "",
         "",
-        `Please contact ${profile?.businessName || "Business"} if you need any clarification. Thank you.`,
+        `Please contact ${profile?.businessName || businessSettings?.businessName || "Business"} if you need any clarification. Thank you.`,
       ]
         .filter(Boolean)
         .join("\n");
     },
-    [profile?.businessName, t]
+    [profile?.businessName, businessSettings?.businessName, t]
   );
 
   const buildPaymentRequestMessage = useCallback(
@@ -221,33 +242,39 @@ const DebtsPage = () => {
       return [
         `Hello ${customer.name},`,
         "",
-        `This is a payment reminder from ${profile?.businessName || "Business"}.`,
+        `This is a payment reminder from ${profile?.businessName || businessSettings?.businessName || "Business"}.`,
         `${t("debts.remainingDebt") || "Remaining Debt"}: ${formatCurrency(customer.remaining)}`,
         customer.due_date
           ? `${t("debts.dueDate") || "Due Date"}: ${formatDate(customer.due_date)}`
           : "",
         "",
-        `Please make your payment as soon as possible. Thank you.`,
+        "Please make your payment as soon as possible. Thank you.",
       ]
         .filter(Boolean)
         .join("\n");
     },
-    [profile?.businessName, t]
+    [profile?.businessName, businessSettings?.businessName, t]
   );
 
-  const openWhatsAppPrompt = (phone: string, message: string) => {
-    setWhatsAppPrompt({
+  const openMessagePrompt = (
+    phone: string,
+    message: string,
+    channel: "whatsapp" | "sms"
+  ) => {
+    setMessagePrompt({
       open: true,
       phone,
       message,
+      channel,
     });
   };
 
-  const closeWhatsAppPrompt = () => {
-    setWhatsAppPrompt({
+  const closeMessagePrompt = () => {
+    setMessagePrompt({
       open: false,
       phone: "",
       message: "",
+      channel: "whatsapp",
     });
   };
 
@@ -350,7 +377,10 @@ const DebtsPage = () => {
             lastDebtDate,
           };
         })
-        .filter((ledger) => ledger.items.length > 0 && ledger.totalDebt > 0 && ledger.remaining > 0)
+        .filter(
+          (ledger) =>
+            ledger.items.length > 0 && ledger.totalDebt > 0 && ledger.remaining > 0
+        )
         .sort((a, b) => {
           const aDate = a.lastDebtDate || a.created_at;
           const bDate = b.lastDebtDate || b.created_at;
@@ -465,8 +495,14 @@ const DebtsPage = () => {
   const buildCustomerCsvLines = (customer: CustomerLedger) => {
     const rows = [
       [csvCell(t("debts.customerName") || "Customer Name"), csvCell(customer.name)].join(","),
-      [csvCell(t("auth.phoneNumber") || "Phone"), csvCell(customer.phone || (t("messages.noPhone") || "No phone"))].join(","),
-      [csvCell(t("debts.dueDate") || "Due Date"), csvCell(customer.due_date ? formatDate(customer.due_date) : "-")].join(","),
+      [
+        csvCell(t("auth.phoneNumber") || "Phone"),
+        csvCell(customer.phone || (t("messages.noPhone") || "No phone")),
+      ].join(","),
+      [
+        csvCell(t("debts.dueDate") || "Due Date"),
+        csvCell(customer.due_date ? formatDate(customer.due_date) : "-"),
+      ].join(","),
       "",
       [
         "#",
@@ -516,11 +552,7 @@ const DebtsPage = () => {
 
       customer.payments.forEach((payment) => {
         rows.push(
-          [
-            payment.amount_paid,
-            formatDate(payment.paid_at),
-            payment.note || "",
-          ]
+          [payment.amount_paid, formatDate(payment.paid_at), payment.note || ""]
             .map(csvCell)
             .join(",")
         );
@@ -1006,7 +1038,7 @@ const DebtsPage = () => {
           columnStyles: {
             0: { cellWidth: 10, halign: "center" },
             1: { cellWidth: 35, halign: "right", fontStyle: "bold" },
-            2: { cellWidth: 35, halign: "center" },
+                        2: { cellWidth: 35, halign: "center" },
             3: { cellWidth: 92 },
           },
         });
@@ -1048,18 +1080,16 @@ const DebtsPage = () => {
         pageH - 8
       );
 
-      doc.text(
-        `${status}`,
-        pageW - margin,
-        pageH - 8,
-        { align: "right" }
-      );
+      doc.text(`${status}`, pageW - margin, pageH - 8, {
+        align: "right",
+      });
 
-      const safeName = customer.name
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/gi, "-")
-        .replace(/^-+|-+$/g, "") || "customer";
+      const safeName =
+        customer.name
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/gi, "-")
+          .replace(/^-+|-+$/g, "") || "customer";
 
       const filename = `${safeName}-${(t("debts.pdfFilePrefix") || "debt-report")
         .toLowerCase()
@@ -1084,11 +1114,12 @@ const DebtsPage = () => {
     try {
       setDownloadingCustomerId(customer.id);
 
-      const safeName = customer.name
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/gi, "-")
-        .replace(/^-+|-+$/g, "") || "customer";
+      const safeName =
+        customer.name
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/gi, "-")
+          .replace(/^-+|-+$/g, "") || "customer";
 
       const filename = `${safeName}-debt-ledger-${new Date().toISOString().split("T")[0]}.csv`;
 
@@ -1107,7 +1138,11 @@ const DebtsPage = () => {
     }
   };
 
-  const handleWhatsApp = (customer: CustomerLedger, kind: "report" | "request" = "request") => {
+  const handleMessage = (
+    customer: CustomerLedger,
+    channel: "whatsapp" | "sms",
+    kind: "report" | "request" = "request"
+  ) => {
     if (!customer.phone) {
       toast.error(t("messages.noPhone") || "No phone number.");
       return;
@@ -1118,7 +1153,7 @@ const DebtsPage = () => {
         ? buildDebtReportMessage(customer)
         : buildPaymentRequestMessage(customer);
 
-    openWhatsAppPrompt(customer.phone, message);
+    openMessagePrompt(customer.phone, message, channel);
   };
 
   const openPayment = (customer: CustomerLedger) => {
@@ -1145,16 +1180,14 @@ const DebtsPage = () => {
     const nowIso = new Date().toISOString();
 
     try {
-      const paymentInsertResponse = await (supabase as any)
-        .from("debt_payments")
-        .insert({
-          customer_id: selectedCustomer.id,
-          amount_paid: paymentAmount,
-          paid_at: nowIso,
-          received_by: actorIdentifier || null,
-          note: "Manual payment from debt page",
-          created_at: nowIso,
-        });
+      const paymentInsertResponse = await (supabase as any).from("debt_payments").insert({
+        customer_id: selectedCustomer.id,
+        amount_paid: paymentAmount,
+        paid_at: nowIso,
+        received_by: actorIdentifier || null,
+        note: "Manual payment from debt page",
+        created_at: nowIso,
+      });
 
       if (paymentInsertResponse.error) throw paymentInsertResponse.error;
 
@@ -1213,7 +1246,7 @@ const DebtsPage = () => {
                 remainingPreview
               )}`;
 
-        openWhatsAppPrompt(selectedCustomer.phone, message);
+        openMessagePrompt(selectedCustomer.phone, message, "whatsapp");
       }
 
       toast.success(t("payment.paymentSuccess") || "Payment recorded.");
@@ -1560,7 +1593,8 @@ const DebtsPage = () => {
                         >
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-emerald-800">
-                              {(t("payment.recordPayment") || "Payment")} {formatCurrency(payment.amount_paid)}
+                              {(t("payment.recordPayment") || "Payment")}{" "}
+                              {formatCurrency(payment.amount_paid)}
                             </p>
                             <p className="mt-1 text-xs text-emerald-700">
                               {formatDate(payment.paid_at)}
@@ -1578,16 +1612,27 @@ const DebtsPage = () => {
 
               <div className="mt-6 flex flex-wrap justify-center gap-4">
                 {selectedCustomer.phone && (
-                  <button
-                    type="button"
-                    onClick={() => handleWhatsApp(selectedCustomer, "report")}
-                    className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500 shadow-lg transition-transform hover:scale-105 hover:bg-green-600"
-                    title="WhatsApp"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-8 w-8 fill-white">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                    </svg>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleMessage(selectedCustomer, "whatsapp", "report")}
+                      className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500 shadow-lg transition-transform hover:scale-105 hover:bg-green-600"
+                      title="WhatsApp"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-8 w-8 fill-white">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                      </svg>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleMessage(selectedCustomer, "sms", "request")}
+                      className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500 shadow-lg transition-transform hover:scale-105 hover:bg-orange-600"
+                      title="SMS"
+                    >
+                      <MessageSquare size={26} className="text-white" />
+                    </button>
+                  </>
                 )}
 
                 <button
@@ -1602,6 +1647,16 @@ const DebtsPage = () => {
                   ) : (
                     <FileText size={26} className="text-white" />
                   )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void downloadCustomerCsv(selectedCustomer)}
+                  disabled={downloadingCustomerId === selectedCustomer.id}
+                  className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-600 shadow-lg transition-transform hover:scale-105 hover:bg-sky-700 disabled:opacity-60"
+                  title="Download Customer CSV"
+                >
+                  <Smartphone size={24} className="text-white" />
                 </button>
 
                 {isOwner && (
@@ -1640,20 +1695,22 @@ const DebtsPage = () => {
           />
         )}
 
-        {whatsAppPrompt.open && (
+        {messagePrompt.open && (
           <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-3 sm:items-center sm:p-4">
             <div className="w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl">
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Open WhatsApp</h3>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {messagePrompt.channel === "sms" ? "Open SMS" : "Open WhatsApp"}
+                  </h3>
                   <p className="mt-1 text-sm text-slate-500">
-                    Your message is ready. Open WhatsApp or copy the text first.
+                    Your message is ready. Open the app or copy the text first.
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={closeWhatsAppPrompt}
+                  onClick={closeMessagePrompt}
                   className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200"
                 >
                   <X size={18} />
@@ -1661,26 +1718,34 @@ const DebtsPage = () => {
               </div>
 
               <div className="max-h-44 overflow-auto rounded-2xl bg-slate-50 p-3 text-sm whitespace-pre-wrap text-slate-700">
-                {whatsAppPrompt.message}
+                {messagePrompt.message}
               </div>
 
               <div className="mt-4 space-y-2">
                 <button
                   type="button"
                   onClick={() => {
-                    closeWhatsAppPrompt();
-                    openWhatsAppSmart(whatsAppPrompt.phone, whatsAppPrompt.message);
+                    closeMessagePrompt();
+                    if (messagePrompt.channel === "sms") {
+                      void openSmsSmart(messagePrompt.phone, messagePrompt.message);
+                    } else {
+                      void openWhatsAppSmart(messagePrompt.phone, messagePrompt.message);
+                    }
                   }}
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 text-sm font-semibold text-white hover:bg-green-700"
+                  className={`flex h-11 w-full items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-white ${
+                    messagePrompt.channel === "sms"
+                      ? "bg-orange-600 hover:bg-orange-700"
+                      : "bg-green-600 hover:bg-green-700"
+                  }`}
                 >
                   <ExternalLink size={16} />
-                  Open WhatsApp
+                  {messagePrompt.channel === "sms" ? "Open SMS App" : "Open WhatsApp"}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => {
-                    void copyText(whatsAppPrompt.message);
+                    void copyText(messagePrompt.message);
                   }}
                   className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50"
                 >
@@ -1690,7 +1755,7 @@ const DebtsPage = () => {
 
                 <button
                   type="button"
-                  onClick={closeWhatsAppPrompt}
+                  onClick={closeMessagePrompt}
                   className="flex h-11 w-full items-center justify-center rounded-2xl border border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50"
                 >
                   Back to App

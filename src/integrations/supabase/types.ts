@@ -143,36 +143,45 @@ export type Database = {
         }
         Relationships: []
       }
-      inventory_items: {
+            inventory_items: {
         Row: {
+          category: string | null
           cost_price: number
           created_at: string
           date_bought: string
           id: string
           image_url: string | null
           item_name: string
+          normalized_name: string | null
           notes: string | null
           quantity: number
+          subcategory: string | null
         }
         Insert: {
+          category?: string | null
           cost_price?: number
           created_at?: string
           date_bought?: string
           id?: string
           image_url?: string | null
           item_name: string
+          normalized_name?: string | null
           notes?: string | null
           quantity?: number
+          subcategory?: string | null
         }
         Update: {
+          category?: string | null
           cost_price?: number
           created_at?: string
           date_bought?: string
           id?: string
           image_url?: string | null
           item_name?: string
+          normalized_name?: string | null
           notes?: string | null
           quantity?: number
+          subcategory?: string | null
         }
         Relationships: []
       }

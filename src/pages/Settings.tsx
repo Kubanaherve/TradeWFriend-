@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getErrorMessage } from "@/lib/errors";
 import { useAuth } from "@/contexts/AuthContext";
+import { performFactoryReset } from "@/services/factoryResetService";
 import { useI18n } from "@/contexts/LanguageContext";
 import type { AppLanguage } from "@/lib/i18n";
 import AppShell from "@/components/layout/AppShell";
@@ -164,9 +165,7 @@ const Settings = () => {
     setClearing(true);
 
     try {
-      const { error } = await (supabase as any).rpc("factory_reset_app");
-
-      if (error) throw error;
+      await performFactoryReset();
 
       setSettings((prev) => ({
         ...prev,

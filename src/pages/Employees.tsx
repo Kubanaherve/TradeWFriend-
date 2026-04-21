@@ -6,6 +6,7 @@ import {
   Users,
   Phone,
   User,
+  ShieldBan,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -89,6 +90,7 @@ const Employees = () => {
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [busyEmployeeId, setBusyEmployeeId] = useState<string | null>(null);
 
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
@@ -152,6 +154,12 @@ const Employees = () => {
     void loadEmployees();
   }, [canUsePage, loadEmployees]);
 
+  const resetForm = () => {
+    setDisplayName("");
+    setPhone("");
+    setPin("");
+  };
+
   const handleAddEmployee = async () => {
     if (!isOwner) {
       toast.error(t("errors.noPermission"));
@@ -187,20 +195,22 @@ const Employees = () => {
     try {
       const { data: existingByPhone, error: checkError } = await (supabase as any)
         .from("employees")
-        .select("id")
+        .select("id, is_active")
         .eq("phone", cleanPhone)
         .maybeSingle();
 
       if (checkError) throw checkError;
 
       if (existingByPhone) {
-        toast.error(t("employees.phoneAlreadyExists"));
+        toast.error(
+          "This phone number already exists in the database. Delete that employee first if you want to reuse the same number."
+        );
         return;
       }
 
       const pinHash = await hashPin(cleanPin, cleanPhone);
 
-      const { data, error } = await (supabase as any)
+      const { error } = await (supabase as any)
         .from("employees")
         .insert({
           display_name: cleanName,
@@ -210,19 +220,13 @@ const Employees = () => {
           created_by: ownerIdentifier,
           role: "employee",
           is_active: true,
-        })
-        .select()
-        .single();
+          updated_at: new Date().toISOString(),
+        });
 
       if (error) throw error;
 
-      console.log("Employee created:", data);
-
       toast.success(t("employees.employeeCreated"));
-      setDisplayName("");
-      setPhone("");
-      setPin("");
-
+      resetForm();
       await loadEmployees();
     } catch (error: any) {
       console.error("Create employee error:", error);
@@ -232,7 +236,10 @@ const Employees = () => {
     }
   };
 
-  const handleDeactivateEmployee = async (employeeId: string, employeeName: string) => {
+  const handleDeactivateEmployee = async (
+    employeeId: string,
+    employeeName: string
+  ) => {
     if (!isOwner) {
       toast.error(t("errors.noPermission"));
       return;
@@ -243,23 +250,101 @@ const Employees = () => {
     );
     if (!confirmed) return;
 
-    const { error } = await (supabase as any)
-      .from("employees")
-      .update({
-        is_active: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", employeeId)
-      .eq("created_by", ownerIdentifier);
+    setBusyEmployeeId(employeeId);
 
-    if (error) {
+    try {
+      const { error } = await (supabase as any)
+        .from("employees")
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", employeeId)
+        .eq("created_by", ownerIdentifier);
+
+      if (error) throw error;
+
+      toast.success(t("employees.employeeDisabled"));
+      await loadEmployees();
+    } catch (error: any) {
       console.error("Disable employee error:", error);
-      toast.error(error.message || t("employees.disableFailed"));
+      toast.error(error?.message || t("employees.disableFailed"));
+    } finally {
+      setBusyEmployeeId(null);
+    }
+  };
+
+  const handleActivateEmployee = async (
+    employeeId: string,
+    employeeName: string
+  ) => {
+    if (!isOwner) {
+      toast.error(t("errors.noPermission"));
       return;
     }
 
-    toast.success(t("employees.employeeDisabled"));
-    await loadEmployees();
+    const confirmed = window.confirm(`Restore ${employeeName}'s account?`);
+    if (!confirmed) return;
+
+    setBusyEmployeeId(employeeId);
+
+    try {
+      const { error } = await (supabase as any)
+        .from("employees")
+        .update({
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", employeeId)
+        .eq("created_by", ownerIdentifier);
+
+      if (error) throw error;
+
+      toast.success("Employee restored successfully");
+      await loadEmployees();
+    } catch (error: any) {
+      console.error("Restore employee error:", error);
+      toast.error(error?.message || "Failed to restore employee");
+    } finally {
+      setBusyEmployeeId(null);
+    }
+  };
+
+  const handleDeleteEmployee = async (
+    employeeId: string,
+    employeeName: string,
+    employeePhone: string
+  ) => {
+    if (!isOwner) {
+      toast.error("Permission denied");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete ${employeeName} permanently?\n\nPhone: ${employeePhone}\n\nThis will free the number so you can create another employee using the same phone.`
+    );
+
+    if (!confirmed) return;
+
+    setBusyEmployeeId(employeeId);
+
+    try {
+      const { error } = await (supabase as any)
+        .from("employees")
+        .delete()
+        .eq("id", employeeId)
+        .eq("created_by", ownerIdentifier);
+
+      if (error) throw error;
+
+      setEmployees((prev) => prev.filter((employee) => employee.id !== employeeId));
+      toast.success("Employee deleted permanently");
+    } catch (error: any) {
+      console.error("Failed to delete employee:", error);
+      toast.error(error?.message || "Failed to delete employee");
+    } finally {
+      setBusyEmployeeId(null);
+    }
   };
 
   const activeCount = employees.filter((e) => e.is_active !== false).length;
@@ -320,7 +405,7 @@ const Employees = () => {
               {t("employees.addEmployee")}
             </h2>
             <p className="mt-1 text-xs text-slate-500">
-              {t("employees.addEmployeeHelp")}
+              Add a new employee. If you want to reuse an old phone number, permanently delete the old employee first.
             </p>
           </div>
 
@@ -339,9 +424,7 @@ const Employees = () => {
 
             <Input
               value={pin}
-              onChange={(e) =>
-                setPin(e.target.value.replace(/\D/g, "").slice(0, 6))
-              }
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
               placeholder={t("employees.pinPlaceholder")}
               type="password"
             />
@@ -370,6 +453,7 @@ const Employees = () => {
             <div className="space-y-3">
               {employees.map((employee) => {
                 const active = employee.is_active !== false;
+                const busy = busyEmployeeId === employee.id;
 
                 return (
                   <div
@@ -400,12 +484,10 @@ const Employees = () => {
                             : "bg-red-100 text-red-700"
                         }`}
                       >
-                        {active
-                          ? t("employees.active")
-                          : t("employees.disabled")}
+                        {active ? t("employees.active") : t("employees.disabled")}
                       </span>
 
-                      {active && (
+                      {active ? (
                         <button
                           onClick={() =>
                             void handleDeactivateEmployee(
@@ -413,12 +495,46 @@ const Employees = () => {
                               employee.display_name
                             )
                           }
-                          className="rounded-lg p-2 text-red-600 hover:bg-red-50"
+                          disabled={busy}
+                          className="rounded-lg p-2 text-amber-600 hover:bg-amber-50 disabled:opacity-50"
                           type="button"
+                          title="Disable employee"
                         >
-                          <Trash2 size={16} />
+                          <ShieldBan size={16} />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            void handleActivateEmployee(
+                              employee.id,
+                              employee.display_name
+                            )
+                          }
+                          disabled={busy}
+                          className="rounded-lg p-2 text-green-600 hover:bg-green-50 disabled:opacity-50"
+                          type="button"
+                          title="Restore employee"
+                        >
+                          <User size={16} />
                         </button>
                       )}
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          void handleDeleteEmployee(
+                            employee.id,
+                            employee.display_name,
+                            employee.phone
+                          )
+                        }
+                        disabled={busy}
+                        className="text-red-600 border-red-200 hover:bg-red-50"
+                      >
+                        <Trash2 size={14} className="mr-1" />
+                        Delete
+                      </Button>
                     </div>
                   </div>
                 );

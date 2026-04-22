@@ -32,7 +32,7 @@ const SETTING_KEYS = {
 const Settings = () => {
   const navigate = useNavigate();
   const auth = useAuth();
-  const { language, setLanguage } = useI18n();
+  const { language, setLanguage, t } = useI18n();
 
   const [settings, setSettings] = useState<BusinessSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
@@ -80,23 +80,23 @@ const Settings = () => {
         });
       } catch (error) {
         console.error("Failed to load settings:", error);
-        toast.error("Failed to load settings");
+        toast.error(t("settings.loadFailed"));
       } finally {
         setLoading(false);
       }
     };
 
     void loadSettings();
-  }, [businessNameFromProfile, canUsePage]);
+  }, [businessNameFromProfile, canUsePage, t]);
 
   const handleSave = async () => {
     if (!isOwner) {
-      toast.error("Permission denied");
+      toast.error(t("settings.permissionDenied"));
       return;
     }
 
     if (!settings.businessName.trim()) {
-      toast.error("Business name is required");
+      toast.error(t("settings.businessNameRequired"));
       return;
     }
 
@@ -144,10 +144,10 @@ const Settings = () => {
       }
 
       await auth.refreshProfile();
-      toast.success("Settings saved successfully");
+      toast.success(t("settings.settingsSaved"));
     } catch (error) {
       console.error("Error saving settings:", error);
-      toast.error("Failed to save settings");
+      toast.error(t("settings.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -155,11 +155,11 @@ const Settings = () => {
 
   const handleFactoryReset = async () => {
     if (!isOwner) {
-      toast.error("Permission denied");
+      toast.error(t("settings.permissionDenied"));
       return;
     }
 
-    const confirmed = window.confirm("This will permanently delete all data. Are you sure?");
+    const confirmed = window.confirm(t("settings.factoryResetConfirm"));
     if (!confirmed) return;
 
     setClearing(true);
@@ -181,11 +181,11 @@ const Settings = () => {
       window.dispatchEvent(new CustomEvent("inventoryUpdated"));
       window.dispatchEvent(new CustomEvent("salesUpdated"));
 
-      toast.success("Factory reset completed");
+      toast.success(t("settings.factoryResetDone"));
       navigate("/dashboard", { replace: true });
     } catch (error) {
       console.error("Error during factory reset:", error);
-      toast.error("Factory reset failed");
+      toast.error(t("settings.factoryResetFailed"));
     } finally {
       setClearing(false);
     }
@@ -196,7 +196,7 @@ const Settings = () => {
       <AppShell>
         <div className="text-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-gray-600 mt-2">Loading settings...</p>
+          <p className="text-gray-600 mt-2">{t("settings.loadingSettings")}</p>
         </div>
       </AppShell>
     );
@@ -206,7 +206,7 @@ const Settings = () => {
     return (
       <AppShell>
         <div className="text-center py-8">
-          <p className="text-gray-600">Unable to load settings</p>
+          <p className="text-gray-600">{t("settings.unableToLoadSettings")}</p>
         </div>
       </AppShell>
     );
@@ -217,10 +217,10 @@ const Settings = () => {
       <AppShell>
         <div className="text-center py-12">
           <Crown className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Settings</h1>
-          <p className="text-gray-600 mb-6">Only business owners can access settings.</p>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">{t("settings.title")}</h1>
+          <p className="text-gray-600 mb-6">{t("settings.onlyOwnersCanAccess")}</p>
           <Button onClick={() => navigate("/dashboard")}>
-            Back to Dashboard
+            {t("settings.backToDashboard")}
           </Button>
         </div>
       </AppShell>
@@ -232,8 +232,8 @@ const Settings = () => {
       <div className="max-w-4xl mx-auto p-4 space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600 mt-1">Manage your business configuration</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t("settings.title")}</h1>
+          <p className="text-gray-600 mt-1">{t("settings.manageBusinessConfiguration")}</p>
         </div>
 
         {/* Business Settings */}
@@ -241,13 +241,13 @@ const Settings = () => {
           <div className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <Crown className="h-5 w-5 text-amber-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Business Settings</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{t("settings.businessSettings")}</h2>
             </div>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Business Name *
+                  {t("settings.businessName")} *
                 </label>
                 <Input
                   value={settings.businessName}
@@ -257,17 +257,17 @@ const Settings = () => {
                       businessName: e.target.value,
                     }))
                   }
-                  placeholder="Enter your business name"
+                  placeholder={t("settings.businessNamePlaceholder")}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  This name will appear on all customer communications and reports
+                  {t("settings.businessNameHelp")}
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Initial Capital
+                    {t("settings.initialCapital")}
                   </label>
                   <Input
                     type="number"
@@ -278,13 +278,13 @@ const Settings = () => {
                         initialCapital: Number(e.target.value) || 0,
                       }))
                     }
-                    placeholder="0"
+                    placeholder={t("settings.zeroPlaceholder")}
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Target Capital
+                    {t("settings.targetCapital")}
                   </label>
                   <Input
                     type="number"
@@ -295,7 +295,7 @@ const Settings = () => {
                         targetCapital: Number(e.target.value) || 0,
                       }))
                     }
-                    placeholder="0"
+                    placeholder={t("settings.zeroPlaceholder")}
                   />
                 </div>
               </div>
@@ -305,7 +305,7 @@ const Settings = () => {
                 disabled={saving}
                 className="w-full sm:w-auto"
               >
-                {saving ? "Saving..." : "Save Settings"}
+                {saving ? t("common.saving") : t("settings.saveSettings")}
               </Button>
             </div>
           </div>
@@ -316,11 +316,11 @@ const Settings = () => {
           <div className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <Users className="h-5 w-5 text-blue-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Employee Management</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{t("settings.employeeManagement")}</h2>
             </div>
 
             <p className="text-gray-600 mb-4">
-              Manage employees and their access to the system
+              {t("settings.manageEmployeesDescription")}
             </p>
 
             <Button
@@ -328,7 +328,7 @@ const Settings = () => {
               variant="outline"
               className="w-full sm:w-auto"
             >
-              Manage Employees
+              {t("settings.manageEmployees")}
             </Button>
           </div>
         </div>
@@ -338,11 +338,11 @@ const Settings = () => {
           <div className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <Globe className="h-5 w-5 text-green-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Language</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{t("settings.language")}</h2>
             </div>
 
             <p className="text-gray-600 mb-4">
-              Choose your preferred language
+              {t("settings.choosePreferredLanguage")}
             </p>
 
             <select
@@ -350,9 +350,9 @@ const Settings = () => {
               onChange={(e) => setLanguage(e.target.value as AppLanguage)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
             >
-              <option value="rw">Kinyarwanda</option>
-              <option value="en">English</option>
-              <option value="fr">Français</option>
+              <option value="rw">{t("settings.kinyarwanda")}</option>
+              <option value="en">{t("settings.english")}</option>
+              <option value="fr">{t("settings.french")}</option>
             </select>
           </div>
         </div>
@@ -362,11 +362,11 @@ const Settings = () => {
           <div className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <AlertTriangle className="h-5 w-5 text-red-600" />
-              <h2 className="text-lg font-semibold text-red-900">Danger Zone</h2>
+              <h2 className="text-lg font-semibold text-red-900">{t("settings.dangerZone")}</h2>
             </div>
 
             <p className="text-red-700 mb-4">
-              Factory reset will permanently delete all business data. This action cannot be undone.
+              {t("settings.factoryResetWarning")}
             </p>
 
             <Button
@@ -375,7 +375,7 @@ const Settings = () => {
               variant="destructive"
               className="w-full sm:w-auto"
             >
-              {clearing ? "Resetting..." : "Factory Reset"}
+              {clearing ? t("settings.resetting") : t("settings.factoryReset")}
             </Button>
           </div>
         </div>

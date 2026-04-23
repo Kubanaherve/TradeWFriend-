@@ -276,8 +276,8 @@ const SalesPage = () => {
     fetchInvAbort.current?.abort();
   }, []);
 
-  /* ── sale number ── */
-  const generateSaleNumber = useCallback(async (): Promise<string> => {
+  /* ── sale numbers ── allocates `count` sequential numbers in one DB round-trip */
+  const generateSaleNumbers = useCallback(async (count: number): Promise<string[]> => {
     try {
       const { data, error } = await (supabase as any)
         .from("sales").select("sale_number")
@@ -286,11 +286,15 @@ const SalesPage = () => {
       if (error) throw error;
       let next = 1;
       if (data?.length && data[0]?.sale_number) {
+        // handles both "SALE-001" and legacy formats
         const n = parseInt(String(data[0].sale_number).split("-")[1] ?? "0", 10);
         if (!Number.isNaN(n)) next = n + 1;
       }
-      return `SALE-${padNumber(next)}`;
-    } catch { return `SALE-${Date.now().toString().slice(-6)}`; }
+      return Array.from({ length: count }, (_, i) => `SALE-${padNumber(next + i)}`);
+    } catch {
+      const base = Date.now();
+      return Array.from({ length: count }, (_, i) => `SALE-${String(base + i).slice(-6)}`);
+    }
   }, []);
 
   /* ── open / close sale modal ── */
@@ -380,15 +384,17 @@ const SalesPage = () => {
 
     setSaving(true);
     try {
-      const createdAt  = new Date().toISOString();
-      const saleNumber = await generateSaleNumber();
+      const createdAt   = new Date().toISOString();
+      // Allocate one unique sale number per item in a single round-trip
+      const saleNumbers = await generateSaleNumbers(cartItems.length);
 
-      for (const ci of cartItems) {
+      for (let i = 0; i < cartItems.length; i++) {
+        const ci        = cartItems[i];
         const unitPrice = Number(ci.item.cost_price ?? 0);
         const salePrice = unitPrice * ci.qty;
 
         const { error: insertError } = await (supabase as any).from("sales").insert({
-          sale_number: saleNumber,
+          sale_number: saleNumbers[i],
           item_id:    ci.item.id,
           item_name:  ci.item.item_name,
           quantity:   ci.qty,
@@ -420,6 +426,54 @@ const SalesPage = () => {
       setSaving(false);
     }
   };
+
+  /* ── delete single sale + restore inventory ── */
+  const handleDeleteSale = useCallback(async (sale: SaleRecord) => {
+    if (!window.confirm(t("sales.confirmDeleteSale") || "Delete this sale and restore inventory?")) return;
+
+    // Step 1 — delete the sale row
+    const { error: deleteError } = await (supabase as any)
+      .from("sales").delete().eq("id", sale.id);
+    if (deleteError) {
+      toast.error(deleteError.message || t("sales.failedToDelete"));
+      return;
+    }
+
+    // Step 2 — update UI immediately so the row disappears regardless of what follows
+    setSales((prev) => prev.filter((s) => s.id !== sale.id));
+
+    // Step 3 — restore inventory (isolated; a failure here won't undo the delete)
+    if (sale.item_id && sale.quantity > 0) {
+      try {
+        // .maybeSingle() returns { data: null } instead of throwing when 0 rows found
+        const { data: invData, error: fetchError } = await (supabase as any)
+          .from("inventory_items")
+          .select("quantity")
+          .eq("id", sale.item_id)
+          .maybeSingle();
+
+        if (fetchError) throw fetchError;
+
+        if (invData) {
+          const { error: updateError } = await (supabase as any)
+            .from("inventory_items")
+            .update({ quantity: (invData.quantity ?? 0) + sale.quantity })
+            .eq("id", sale.item_id);
+          if (updateError) throw updateError;
+        }
+
+        void fetchInventory();
+        window.dispatchEvent(new CustomEvent("inventoryUpdated"));
+        toast.success(t("sales.saleDeleted") || "Sale deleted & inventory restored");
+      } catch {
+        // sale is already gone — just warn about stock
+        toast.warning(t("sales.saleDeletedStockNotRestored") || "Sale deleted but stock could not be restored");
+        void fetchInventory();
+      }
+    } else {
+      toast.success(t("sales.saleDeleted") || "Sale deleted");
+    }
+  }, [t, fetchInventory]);
 
   /* ── exports ── */
   const handleExportCSV = useCallback(async () => {
@@ -606,8 +660,8 @@ const SalesPage = () => {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/80 text-left">
-                      {[t("sales.saleNumber"), t("sales.item"), t("sales.qty"), t("sales.unitPrice"), t("sales.total"), t("sales.time")].map((h, i) => (
-                        <th key={h} className={`px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-400 ${i > 1 ? "text-right" : ""} ${i === 0 ? "pl-5" : ""} ${i === 5 ? "pr-5" : ""}`}>{h}</th>
+                      {[t("sales.saleNumber"), t("sales.item"), t("sales.qty"), t("sales.unitPrice"), t("sales.total"), t("sales.time"), ""].map((h, i) => (
+                        <th key={h + i} className={`px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-400 ${i > 1 ? "text-right" : ""} ${i === 0 ? "pl-5" : ""} ${i === 6 ? "pr-5 w-8" : ""}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -629,6 +683,15 @@ const SalesPage = () => {
                         <td className="pl-4 pr-5 py-3.5 text-right">
                           <span className="inline-flex items-center gap-1 text-xs text-slate-400"><Clock size={10} />{formatTime(sale.created_at)}</span>
                         </td>
+                        <td className="py-3.5 pr-4 text-right">
+                          <button
+                            onClick={() => handleDeleteSale(sale)}
+                            title="Delete sale & restore inventory"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -636,7 +699,7 @@ const SalesPage = () => {
                     <tr className="border-t-2 border-slate-200 bg-slate-50">
                       <td colSpan={4} className="pl-5 pr-4 py-3 text-right text-[10px] font-bold uppercase tracking-wide text-slate-400">{t("sales.periodTotal")}</td>
                       <td className="px-4 py-3 text-right text-base font-extrabold text-slate-900">{formatCurrency(totalRevenue)}</td>
-                      <td />
+                      <td /><td />
                     </tr>
                   </tfoot>
                 </table>
@@ -661,7 +724,16 @@ const SalesPage = () => {
                         <p className="mt-0.5 truncate text-[11px] font-medium text-amber-700">{sale.notes}</p>
                       )}
                     </div>
-                    <p className="shrink-0 text-sm font-extrabold text-slate-900">{formatCurrency(sale.sale_price)}</p>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <p className="text-sm font-extrabold text-slate-900">{formatCurrency(sale.sale_price)}</p>
+                      <button
+                        onClick={() => handleDeleteSale(sale)}
+                        title="Delete sale & restore inventory"
+                        className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-red-400 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 size={11} /> {t("sales.delete") || "Delete"}
+                      </button>
+                    </div>
                   </div>
                 ))}
                 <div className="flex items-center justify-between bg-slate-50 px-4 py-3.5">

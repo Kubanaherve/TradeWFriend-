@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Download, Smartphone, Check, ArrowLeft } from "lucide-react";
 import logo from "@/assets/logo.png";
-import { useI18n } from "@/contexts/LanguageContext";
+import { useI18n } from "@/contexts/useI18n";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;

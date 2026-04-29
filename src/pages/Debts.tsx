@@ -7,7 +7,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { createCsvBlob, csvCell, saveBlobWithPicker } from "@/lib/fileExport";
 import { useBusinessSettings } from "@/hooks/useBusinessSettings";
 import { useAuth } from "@/contexts/AuthContext";
-import { useI18n } from "@/contexts/LanguageContext";
+import { useI18n } from "@/contexts/useI18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppStore } from "@/store/AppStore";
 import { toast } from "sonner";

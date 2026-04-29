@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBusinessSettings } from "@/hooks/useBusinessSettings";
 import { useAuth } from "@/contexts/AuthContext";
-import { useI18n } from "@/contexts/LanguageContext";
+import { useI18n } from "@/contexts/useI18n";
 import { supabase } from "@/integrations/supabase/client";
 import AppShell from "@/components/layout/AppShell";
 import {

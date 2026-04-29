@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, UserPlus, Phone, User, Trash2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth, normalizePhone } from "@/contexts/AuthContext";
-import { useI18n } from "@/contexts/LanguageContext";
+import { useI18n } from "@/contexts/useI18n";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";

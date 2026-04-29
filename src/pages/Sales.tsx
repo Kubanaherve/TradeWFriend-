@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input";
 import AppShell from "@/components/layout/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useI18n } from "@/contexts/LanguageContext";
+import { useI18n } from "@/contexts/useI18n";
 import { useBusinessSettings } from "@/hooks/useBusinessSettings";
 import { formatCurrency } from "@/lib/kinyarwanda";
 import {

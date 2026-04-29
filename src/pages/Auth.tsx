@@ -19,7 +19,7 @@ import {
   normalizePhone,
   isValidRwandaPhone,
 } from "@/contexts/AuthContext";
-import { useI18n } from "@/contexts/LanguageContext";
+import { useI18n } from "@/contexts/useI18n";
 
 type Screen =
   | "checking"

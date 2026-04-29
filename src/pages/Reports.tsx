@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/kinyarwanda";
 import { getDateKeyFromIso, isDateInFilter } from "@/lib/reporting";
 import { toast } from "sonner";
-import { useI18n } from "@/contexts/LanguageContext";
+import { useI18n } from "@/contexts/useI18n";
 import AppShell from "@/components/layout/AppShell";
 
 type FilterOption = "today" | "week" | "month" | "all";
@@ -187,7 +187,7 @@ const ReportsPage = () => {
   const formatDateLabel = (dateStr: string) => {
     const date = new Date(`${dateStr}T00:00:00`);
     return date.toLocaleDateString(
-      language === "fr" ? "fr-FR" : language === "en" ? "en-GB" : "rw-RW",
+      language === "fr" ? "fr-FR" : language === "en" ? "en-GB" : language === "hi" ? "hi-IN" : "rw-RW",
       {
         weekday: "long",
         year: "numeric",

@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getErrorMessage } from "@/lib/errors";
 import { useAuth } from "@/contexts/AuthContext";
 import { performFactoryReset } from "@/services/factoryResetService";
-import { useI18n } from "@/contexts/LanguageContext";
+import { useI18n } from "@/contexts/useI18n";
 import type { AppLanguage } from "@/lib/i18n";
 import AppShell from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
@@ -353,6 +353,7 @@ const Settings = () => {
               <option value="rw">{t("settings.kinyarwanda")}</option>
               <option value="en">{t("settings.english")}</option>
               <option value="fr">{t("settings.french")}</option>
+              <option value="hi">{t("settings.hindi")}</option>
             </select>
           </div>
         </div>

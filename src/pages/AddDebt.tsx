@@ -22,7 +22,7 @@ import { useBusinessSettings } from "@/hooks/useBusinessSettings";
 import { useCustomerSuggestions } from "@/hooks/useCustomerSuggestions";
 import { useAppStore } from "@/store/AppStore";
 import { useAuth, normalizePhone } from "@/contexts/AuthContext";
-import { useI18n } from "@/contexts/LanguageContext";
+import { useI18n } from "@/contexts/useI18n";
 import type { InventoryItem } from "@/types/inventory";
 
 interface SelectedItem {

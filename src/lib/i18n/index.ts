@@ -14,5 +14,5 @@ export const dictionaries: Record<AppLanguage, TranslationDictionary> = {
   en: en as TranslationDictionary,
   rw: rw as TranslationDictionary,
   fr: fr as TranslationDictionary,
-  hi: hi as TranslationDictionary,
+  hi: hi as unknown as TranslationDictionary,
 };

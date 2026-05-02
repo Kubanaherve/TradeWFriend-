@@ -29,8 +29,9 @@ import {
   Loader2,
   ShoppingCart,
   ChevronRight,
-  Sparkles,
   ShoppingBag,
+  Sparkles,
+  ArrowUpRight,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import AppShell from "@/components/layout/AppShell";
@@ -93,13 +94,61 @@ const getDateRange = (filter: DateFilter) => {
 const getCategoryIcon = (category?: string | null) =>
   CATEGORY_CONFIG[category ?? ""]?.icon ?? "📦";
 
-const StockBadge = ({ qty, outOfStockLabel, leftLabel, inStockLabel }: { qty: number; outOfStockLabel: string; leftLabel: string; inStockLabel: string }) => {
-  if (qty <= 0)  return <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">{outOfStockLabel}</span>;
-  if (qty <= 5)  return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">{qty} {leftLabel}</span>;
-  return <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">{qty} {inStockLabel}</span>;
+/* ── Stock badge ── */
+const StockBadge = ({ qty, outOfStockLabel, leftLabel, inStockLabel }: {
+  qty: number; outOfStockLabel: string; leftLabel: string; inStockLabel: string;
+}) => {
+  if (qty <= 0)  return (
+    <span style={{ background: "#FEE2E2", color: "#DC2626" }}
+      className="rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-wide">
+      {outOfStockLabel}
+    </span>
+  );
+  if (qty <= 5)  return (
+    <span style={{ background: "#FEF3C7", color: "#D97706" }}
+      className="rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-wide">
+      {qty} {leftLabel}
+    </span>
+  );
+  return (
+    <span style={{ background: "#DCFCE7", color: "#16A34A" }}
+      className="rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-wide">
+      {qty} {inStockLabel}
+    </span>
+  );
 };
 
-/* ═══════════════════════════════════════════════════════ */
+/* ── Stat Card ── */
+const StatCard = ({ icon, label, value, loading, accentColor, bgColor, textColor }: {
+  icon: React.ReactNode; label: string; value: string;
+  loading: boolean; accentColor: string; bgColor: string; textColor: string;
+}) => (
+  <div style={{
+    background: "#FFFFFF",
+    borderRadius: 20,
+    border: "1.5px solid #F1F5F9",
+    padding: "16px",
+    boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+    transition: "box-shadow 0.2s",
+  }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+      <div style={{
+        width: 34, height: 34,
+        borderRadius: 10,
+        background: bgColor,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: accentColor,
+      }}>{icon}</div>
+    </div>
+    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#94A3B8", marginBottom: 4 }}>{label}</p>
+    {loading
+      ? <div style={{ height: 24, width: 80, borderRadius: 8, background: "#F1F5F9", animation: "pulse 1.5s ease-in-out infinite" }} />
+      : <p style={{ fontSize: 20, fontWeight: 800, color: textColor, letterSpacing: "-0.03em" }}>{value}</p>
+    }
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════ */
 const SalesPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading: authLoading, profile } = useAuth();
@@ -108,20 +157,22 @@ const SalesPage = () => {
 
   const businessName = businessSettings.businessName?.trim() || "Business";
   const isOwner = profile?.role === "owner";
+
   const tr = useCallback((key: string, vars?: Record<string, string | number>) => {
     const template = t(key);
     if (!vars) return template;
     return Object.entries(vars).reduce(
-       (result, [name, value]) => result.split(`{${name}}`).join(String(value)),
+      (result, [name, value]) => result.split(`{${name}}`).join(String(value)),
       template
     );
   }, [t]);
+
   const filterLabels = useMemo<Record<DateFilter, string>>(
     () => ({
       today: t("sales.todayOnly"),
-      week: t("sales.thisWeek"),
+      week:  t("sales.thisWeek"),
       month: t("sales.thisMonth"),
-      all: t("sales.allTime"),
+      all:   t("sales.allTime"),
     }),
     [t]
   );
@@ -129,13 +180,12 @@ const SalesPage = () => {
   /* ── data state ── */
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [sales, setSales]         = useState<SaleRecord[]>([]);
-
   const [loadingInventory, setLoadingInventory] = useState(false);
   const [loadingSales, setLoadingSales]         = useState(false);
   const [saving, setSaving]                     = useState(false);
   const [deleting, setDeleting]                 = useState(false);
 
-  /* ── CART (replaces single-item selectedItem/qty) ── */
+  /* ── CART ── */
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [notes, setNotes]         = useState("");
 
@@ -276,7 +326,6 @@ const SalesPage = () => {
     fetchInvAbort.current?.abort();
   }, []);
 
-  /* ── sale numbers ── allocates `count` sequential numbers in one DB round-trip */
   const generateSaleNumbers = useCallback(async (count: number): Promise<string[]> => {
     try {
       const { data, error } = await (supabase as any)
@@ -286,7 +335,6 @@ const SalesPage = () => {
       if (error) throw error;
       let next = 1;
       if (data?.length && data[0]?.sale_number) {
-        // handles both "SALE-001" and legacy formats
         const n = parseInt(String(data[0].sale_number).split("-")[1] ?? "0", 10);
         if (!Number.isNaN(n)) next = n + 1;
       }
@@ -297,7 +345,6 @@ const SalesPage = () => {
     }
   }, []);
 
-  /* ── open / close sale modal ── */
   const resetSaleForm = useCallback(() => {
     setCartItems([]);
     setNotes("");
@@ -306,7 +353,6 @@ const SalesPage = () => {
   const openSaleModal  = () => { resetSaleForm(); setIsSaleModalOpen(true); };
   const closeSaleModal = () => { setIsSaleModalOpen(false); setShowInventoryPopup(false); };
 
-  /* ── category options ── */
   const categoryOptions = useMemo(() => ["All", ...Object.keys(CATEGORY_CONFIG)], []);
   const subcategoryOptions = useMemo(() => {
     if (selectedCategory === "All") return ["All"];
@@ -358,21 +404,17 @@ const SalesPage = () => {
     );
   };
 
-  /* ── confirm item from popup → add to cart ── */
   const confirmPopupItem = () => {
     if (!popupSelectedItem) return;
     const q = parseInt(popupItemQty, 10);
     if (Number.isNaN(q) || q < 1) { toast.error(t("sales.quantityMin")); return; }
     if (q > popupSelectedItem.quantity) { toast.error(tr("sales.onlyNInStock", { n: popupSelectedItem.quantity })); return; }
-
     addToCart(popupSelectedItem, q);
     toast.success(`✓ ${popupSelectedItem.item_name} ${t("sales.addedToCart")}`);
-    // Reset selection but KEEP popup open so they can add more items
     setPopupSelectedItem(null);
     setPopupItemQty("1");
   };
 
-  /* ── save ALL cart items as one sale batch ── */
   const handleSave = async () => {
     if (cartItems.length === 0) { toast.error(t("sales.atLeastOneItem")); return; }
     for (const ci of cartItems) {
@@ -381,18 +423,14 @@ const SalesPage = () => {
         return;
       }
     }
-
     setSaving(true);
     try {
       const createdAt   = new Date().toISOString();
-      // Allocate one unique sale number per item in a single round-trip
       const saleNumbers = await generateSaleNumbers(cartItems.length);
-
       for (let i = 0; i < cartItems.length; i++) {
         const ci        = cartItems[i];
         const unitPrice = Number(ci.item.cost_price ?? 0);
         const salePrice = unitPrice * ci.qty;
-
         const { error: insertError } = await (supabase as any).from("sales").insert({
           sale_number: saleNumbers[i],
           item_id:    ci.item.id,
@@ -407,14 +445,11 @@ const SalesPage = () => {
           added_by:   profile?.phone ?? null,
         });
         if (insertError) throw insertError;
-
         const newQty = Math.max(ci.item.quantity - ci.qty, 0);
         await (supabase as any).from("inventory_items").update({ quantity: newQty }).eq("id", ci.item.id);
       }
-
       const grandTotal = cartItems.reduce((s, ci) => s + Number(ci.item.cost_price) * ci.qty, 0);
-      toast.success(`✓ ${t("sales.saleSaved")} — ${formatCurrency(grandTotal)} (${cartItems.length} ${cartItems.length > 1 ? t("sales.itemsInCart") : t("sales.itemInCart")})`);
-
+      toast.success(`✓ ${t("sales.saleSaved")} — ${formatCurrency(grandTotal)}`);
       resetSaleForm();
       closeSaleModal();
       window.dispatchEvent(new CustomEvent("newSaleRecorded"));
@@ -427,33 +462,16 @@ const SalesPage = () => {
     }
   };
 
-  /* ── delete single sale + restore inventory ── */
   const handleDeleteSale = useCallback(async (sale: SaleRecord) => {
     if (!window.confirm(t("sales.confirmDeleteSale") || "Delete this sale and restore inventory?")) return;
-
-    // Step 1 — delete the sale row
-    const { error: deleteError } = await (supabase as any)
-      .from("sales").delete().eq("id", sale.id);
-    if (deleteError) {
-      toast.error(deleteError.message || t("sales.failedToDelete"));
-      return;
-    }
-
-    // Step 2 — update UI immediately so the row disappears regardless of what follows
+    const { error: deleteError } = await (supabase as any).from("sales").delete().eq("id", sale.id);
+    if (deleteError) { toast.error(deleteError.message || t("sales.failedToDelete")); return; }
     setSales((prev) => prev.filter((s) => s.id !== sale.id));
-
-    // Step 3 — restore inventory (isolated; a failure here won't undo the delete)
     if (sale.item_id && sale.quantity > 0) {
       try {
-        // .maybeSingle() returns { data: null } instead of throwing when 0 rows found
         const { data: invData, error: fetchError } = await (supabase as any)
-          .from("inventory_items")
-          .select("quantity")
-          .eq("id", sale.item_id)
-          .maybeSingle();
-
+          .from("inventory_items").select("quantity").eq("id", sale.item_id).maybeSingle();
         if (fetchError) throw fetchError;
-
         if (invData) {
           const { error: updateError } = await (supabase as any)
             .from("inventory_items")
@@ -461,12 +479,10 @@ const SalesPage = () => {
             .eq("id", sale.item_id);
           if (updateError) throw updateError;
         }
-
         void fetchInventory();
         window.dispatchEvent(new CustomEvent("inventoryUpdated"));
         toast.success(t("sales.saleDeleted") || "Sale deleted & inventory restored");
       } catch {
-        // sale is already gone — just warn about stock
         toast.warning(t("sales.saleDeletedStockNotRestored") || "Sale deleted but stock could not be restored");
         void fetchInventory();
       }
@@ -475,7 +491,6 @@ const SalesPage = () => {
     }
   }, [t, fetchInventory]);
 
-  /* ── exports ── */
   const handleExportCSV = useCallback(async () => {
     if (!sales.length) { toast.error(t("sales.noSalesToExport")); return; }
     try {
@@ -535,334 +550,620 @@ const SalesPage = () => {
   const totalItems   = useMemo(() => sales.reduce((a, s) => a + Number(s.quantity ?? 0), 0), [sales]);
   const avgSale      = sales.length ? totalRevenue / sales.length : 0;
 
+  /* ════════════════════════ STYLES ════════════════════════ */
+  const styles = {
+    page: {
+      background: "#F8FAFC",
+      minHeight: "100vh",
+      fontFamily: "'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif",
+    } as React.CSSProperties,
+
+    // Filter pills
+    filterPill: (active: boolean): React.CSSProperties => ({
+      padding: "8px 18px",
+      borderRadius: 100,
+      fontSize: 12,
+      fontWeight: 700,
+      letterSpacing: "0.02em",
+      border: "none",
+      cursor: "pointer",
+      transition: "all 0.18s ease",
+      background: active ? "#1E293B" : "#FFFFFF",
+      color: active ? "#FFFFFF" : "#64748B",
+      boxShadow: active ? "0 4px 12px rgba(30,41,59,0.18)" : "0 1px 4px rgba(0,0,0,0.06)",
+    }),
+
+    // Section card
+    sectionCard: {
+      background: "#FFFFFF",
+      borderRadius: 24,
+      border: "1.5px solid #F1F5F9",
+      boxShadow: "0 2px 16px rgba(0,0,0,0.04)",
+      overflow: "hidden",
+    } as React.CSSProperties,
+
+    // New Sale FAB
+    fab: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "10px 20px",
+      background: "linear-gradient(135deg, #1E293B 0%, #334155 100%)",
+      color: "#FFFFFF",
+      border: "none",
+      borderRadius: 16,
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: "pointer",
+      boxShadow: "0 4px 16px rgba(30,41,59,0.25)",
+      transition: "all 0.18s ease",
+    } as React.CSSProperties,
+
+    // Refresh button
+    refreshBtn: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "8px 14px",
+      background: "#FFFFFF",
+      color: "#64748B",
+      border: "1.5px solid #E2E8F0",
+      borderRadius: 14,
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      transition: "all 0.15s ease",
+    } as React.CSSProperties,
+
+    // Sale row
+    saleRow: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      padding: "14px 16px",
+      borderBottom: "1px solid #F8FAFC",
+      transition: "background 0.15s",
+    } as React.CSSProperties,
+
+    // Modal overlay
+    overlay: {
+      position: "fixed" as const,
+      inset: 0,
+      zIndex: 100,
+      display: "flex",
+      alignItems: "flex-end",
+      justifyContent: "center",
+      background: "rgba(15, 23, 42, 0.5)",
+      backdropFilter: "blur(8px)",
+    },
+
+    // Bottom sheet
+    sheet: {
+      width: "100%",
+      maxWidth: 480,
+      maxHeight: "92dvh",
+      background: "#FFFFFF",
+      borderRadius: "28px 28px 0 0",
+      display: "flex",
+      flexDirection: "column" as const,
+      boxShadow: "0 -8px 40px rgba(0,0,0,0.12)",
+    },
+
+    // Sheet handle
+    handle: {
+      width: 40,
+      height: 4,
+      borderRadius: 100,
+      background: "#E2E8F0",
+      margin: "12px auto 0",
+      flexShrink: 0,
+    },
+
+    // Cart item row
+    cartRow: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      padding: "14px 16px",
+      borderBottom: "1px solid #F8FAFC",
+    } as React.CSSProperties,
+
+    // Qty stepper button
+    qtyBtn: (dark: boolean): React.CSSProperties => ({
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      border: "none",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: dark ? "#1E293B" : "#F1F5F9",
+      color: dark ? "#FFFFFF" : "#475569",
+      transition: "all 0.15s",
+      flexShrink: 0,
+    }),
+
+    // Confirm/Save button
+    saveBtn: (valid: boolean): React.CSSProperties => ({
+      flex: 2,
+      height: 54,
+      borderRadius: 18,
+      border: "none",
+      cursor: valid ? "pointer" : "not-allowed",
+      background: valid
+        ? "linear-gradient(135deg, #059669 0%, #10B981 100%)"
+        : "#E2E8F0",
+      color: valid ? "#FFFFFF" : "#94A3B8",
+      fontSize: 15,
+      fontWeight: 800,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      boxShadow: valid ? "0 6px 20px rgba(5,150,105,0.3)" : "none",
+      transition: "all 0.2s ease",
+    }),
+
+    // Inventory item card
+    invCard: (selected: boolean, inCart: boolean, outOfStock: boolean): React.CSSProperties => ({
+      borderRadius: 18,
+      border: `2px solid ${selected ? "#1E293B" : inCart ? "#10B981" : "#F1F5F9"}`,
+      background: selected ? "#F8FAFC" : inCart ? "#F0FDF4" : "#FFFFFF",
+      overflow: "hidden",
+      transition: "all 0.18s ease",
+      opacity: outOfStock ? 0.45 : 1,
+      cursor: outOfStock ? "not-allowed" : "pointer",
+      boxShadow: selected ? "0 4px 16px rgba(30,41,59,0.1)" : "0 1px 4px rgba(0,0,0,0.04)",
+    }),
+
+    // Search bar
+    searchBar: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      background: "#F8FAFC",
+      border: "1.5px solid #E2E8F0",
+      borderRadius: 16,
+      padding: "10px 14px",
+    } as React.CSSProperties,
+
+    // Category pill
+    catPill: (active: boolean, accent?: boolean): React.CSSProperties => ({
+      padding: "7px 14px",
+      borderRadius: 100,
+      fontSize: 12,
+      fontWeight: 600,
+      border: "none",
+      cursor: "pointer",
+      whiteSpace: "nowrap" as const,
+      transition: "all 0.15s ease",
+      background: active
+        ? (accent ? "#4F46E5" : "#1E293B")
+        : (accent ? "#EEF2FF" : "#F1F5F9"),
+      color: active
+        ? "#FFFFFF"
+        : (accent ? "#4F46E5" : "#64748B"),
+    }),
+
+    // Total bar in footer
+    totalBar: {
+      background: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
+      borderRadius: 18,
+      padding: "14px 16px",
+      marginBottom: 14,
+      border: "1px solid #E2E8F0",
+    } as React.CSSProperties,
+  };
+
   /* ════════════════════════════ RENDER ════════════════════════════ */
   return (
     <AppShell
       title={t("sales.title")}
-      subtitle={`${businessName} ${t("sales.salesCenter").toLowerCase()}`}
+      subtitle={`${businessName} · ${t("sales.salesCenter")}`}
       showBack
       showHome
       contentClassName="pt-2 md:pt-4"
       headerRight={
-        <div className="flex items-center gap-2">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button
+            style={styles.refreshBtn}
             onClick={() => { void fetchInventory(); void fetchSales(dateFilter); }}
-            className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
           >
-            <RefreshCw size={13} /> {t("sales.refresh")}
+            <RefreshCw size={13} />
+            <span className="hidden sm:inline">{t("sales.refresh")}</span>
           </button>
-          <button
-            onClick={openSaleModal}
-            className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
-          >
-            <Plus size={13} /> {t("sales.newSale")}
+          <button style={styles.fab} onClick={openSaleModal}>
+            <Plus size={15} />
+            {t("sales.newSale")}
           </button>
         </div>
       }
     >
-      <div className="mx-auto w-full max-w-6xl space-y-5">
+      <div style={styles.page}>
+        <div style={{ maxWidth: 640, margin: "0 auto", padding: "0 16px 32px" }}>
 
-        {/* ── date filter pills ── */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-          {(["today", "week", "month", "all"] as DateFilter[]).map((f) => (
-            <button key={f} onClick={() => setDateFilter(f)}
-              className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition-all ${
-                dateFilter === f ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-500 ring-1 ring-slate-200 hover:bg-slate-50"
-              }`}>
-              {filterLabels[f]}
-            </button>
-          ))}
-        </div>
-
-        {/* ── stat cards ── */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { icon: <DollarSign size={14} />, label: t("sales.revenue"),      value: formatCurrency(totalRevenue), accent: "bg-violet-600", text: "text-violet-700" },
-            { icon: <Receipt size={14} />,    label: t("sales.transactions"), value: String(sales.length),         accent: "bg-blue-600",   text: "text-blue-700"   },
-            { icon: <BarChart3 size={14} />,  label: t("sales.avgSale"),      value: formatCurrency(avgSale),      accent: "bg-emerald-600",text: "text-emerald-700"},
-            { icon: <Package size={14} />,    label: t("sales.itemsSold"),    value: String(totalItems),           accent: "bg-amber-500",  text: "text-amber-700"  },
-          ].map((card) => (
-            <div key={card.label} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:shadow-md">
-              <div className="mb-2 flex items-center gap-2">
-                <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${card.accent} text-white`}>{card.icon}</div>
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{card.label}</span>
-              </div>
-              <p className={`text-xl font-extrabold ${card.text}`}>
-                {loadingSales ? <span className="inline-block h-5 w-20 animate-pulse rounded bg-slate-100" /> : card.value}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* ── sales table ── */}
-        <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50">
-              <CalendarDays size={16} className="text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-900">{filterLabels[dateFilter]} {t("sales.salesList")}</p>
-              <p className="text-[11px] text-slate-500">{sales.length} {sales.length !== 1 ? t("sales.transactions_plural") : t("sales.transaction")}</p>
-            </div>
-            {sales.length > 0 && (
-              <div className="ml-auto text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t("sales.total")}</p>
-                <p className="text-base font-extrabold text-slate-900">{formatCurrency(totalRevenue)}</p>
-              </div>
-            )}
+          {/* ── date filter pills ── */}
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 20 }}>
+            {(["today", "week", "month", "all"] as DateFilter[]).map((f) => (
+              <button key={f} style={styles.filterPill(dateFilter === f)} onClick={() => setDateFilter(f)}>
+                {filterLabels[f]}
+              </button>
+            ))}
           </div>
 
-          {/* export / delete toolbar */}
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/70 px-4 py-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white">
-              <Download size={13} className="text-slate-500" />
-            </div>
-            <span className="mr-auto text-xs font-semibold text-slate-600">
-              {t("sales.export")} {sales.length} {sales.length !== 1 ? t("sales.transactions_plural") : t("sales.transaction")} ({filterLabels[dateFilter]})
-            </span>
-            <button onClick={handleExportCSV} disabled={!sales.length}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40">
-              <FileText size={12} /> {t("sales.exportCsv")}
-            </button>
-            <button onClick={handleExportHTML} disabled={!sales.length}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40">
-              <FileText size={12} /> HTML
-            </button>
-            {isOwner && (
-              <button onClick={handleDeleteAll} disabled={!sales.length || deleting}
-                className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-40">
-                {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                {t("sales.deleteAll")}
-              </button>
-            )}
+          {/* ── stat cards ── */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+            <StatCard icon={<DollarSign size={15} />} label={t("sales.revenue")}
+              value={formatCurrency(totalRevenue)} loading={loadingSales}
+              accentColor="#7C3AED" bgColor="#F5F3FF" textColor="#6D28D9" />
+            <StatCard icon={<Receipt size={15} />} label={t("sales.transactions")}
+              value={String(sales.length)} loading={loadingSales}
+              accentColor="#2563EB" bgColor="#EFF6FF" textColor="#1D4ED8" />
+            <StatCard icon={<BarChart3 size={15} />} label={t("sales.avgSale")}
+              value={formatCurrency(avgSale)} loading={loadingSales}
+              accentColor="#059669" bgColor="#ECFDF5" textColor="#047857" />
+            <StatCard icon={<Package size={15} />} label={t("sales.itemsSold")}
+              value={String(totalItems)} loading={loadingSales}
+              accentColor="#D97706" bgColor="#FFFBEB" textColor="#B45309" />
           </div>
 
-          {/* sales content */}
-          {loadingSales ? (
-            <div className="flex items-center justify-center gap-2 p-12 text-sm text-slate-400">
-              <Loader2 size={18} className="animate-spin text-slate-300" /> {t("sales.loadingSales")}
-            </div>
-          ) : sales.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 p-12 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50">
-                <Receipt size={24} className="text-slate-200" />
-              </div>
-              <p className="text-sm font-semibold text-slate-500">{tr("sales.noSalesYet", { period: filterLabels[dateFilter].toLowerCase() })}</p>
-              <button onClick={openSaleModal}
-                className="mt-2 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800">
-                <Plus size={13} /> {t("sales.addFirstSale")}
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* desktop table */}
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/80 text-left">
-                      {[t("sales.saleNumber"), t("sales.item"), t("sales.qty"), t("sales.unitPrice"), t("sales.total"), t("sales.time"), ""].map((h, i) => (
-                        <th key={h + i} className={`px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-400 ${i > 1 ? "text-right" : ""} ${i === 0 ? "pl-5" : ""} ${i === 6 ? "pr-5 w-8" : ""}`}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {sales.map((sale) => (
-                      <tr key={sale.id} className="group transition hover:bg-slate-50/60">
-                        <td className="pl-5 pr-4 py-3.5">
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">
-                            <Hash size={9} className="text-slate-400" />{sale.sale_number ?? "—"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className="font-semibold text-slate-900">{sale.item_name ?? "—"}</span>
-                          {sale.notes && <span className="ml-2 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">{sale.notes}</span>}
-                        </td>
-                        <td className="px-4 py-3.5 text-right font-semibold text-slate-600">{sale.quantity}</td>
-                        <td className="px-4 py-3.5 text-right text-slate-500">{formatCurrency(sale.unit_price)}</td>
-                        <td className="px-4 py-3.5 text-right"><span className="font-extrabold text-slate-900">{formatCurrency(sale.sale_price)}</span></td>
-                        <td className="pl-4 pr-5 py-3.5 text-right">
-                          <span className="inline-flex items-center gap-1 text-xs text-slate-400"><Clock size={10} />{formatTime(sale.created_at)}</span>
-                        </td>
-                        <td className="py-3.5 pr-4 text-right">
-                          <button
-                            onClick={() => handleDeleteSale(sale)}
-                            title="Delete sale & restore inventory"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-slate-200 bg-slate-50">
-                      <td colSpan={4} className="pl-5 pr-4 py-3 text-right text-[10px] font-bold uppercase tracking-wide text-slate-400">{t("sales.periodTotal")}</td>
-                      <td className="px-4 py-3 text-right text-base font-extrabold text-slate-900">{formatCurrency(totalRevenue)}</td>
-                      <td /><td />
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+          {/* ── sales table card ── */}
+          <div style={styles.sectionCard}>
 
-              {/* mobile list */}
-              <div className="divide-y divide-slate-50 md:hidden">
-                {sales.map((sale) => (
-                  <div key={sale.id} className="flex items-center gap-3 px-4 py-4">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100">
-                      <TrendingUp size={14} className="text-slate-500" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-slate-800">{sale.item_name ?? "—"}</p>
-                        <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">{sale.sale_number ?? "—"}</span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-slate-400">
-                        {t("sales.qty")} {sale.quantity} · {formatCurrency(sale.unit_price)} {t("sales.eachUnit")} · {formatTime(sale.created_at)}
-                      </p>
-                      {sale.notes && (
-                        <p className="mt-0.5 truncate text-[11px] font-medium text-amber-700">{sale.notes}</p>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1.5">
-                      <p className="text-sm font-extrabold text-slate-900">{formatCurrency(sale.sale_price)}</p>
-                      <button
-                        onClick={() => handleDeleteSale(sale)}
-                        title="Delete sale & restore inventory"
-                        className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-red-400 hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 size={11} /> {t("sales.delete") || "Delete"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between bg-slate-50 px-4 py-3.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t("sales.periodTotal")}</span>
-                  <span className="text-base font-extrabold text-slate-900">{formatCurrency(totalRevenue)}</span>
+            {/* header */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 12,
+              padding: "16px 16px 14px",
+              borderBottom: "1px solid #F1F5F9",
+            }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 12,
+                background: "#EFF6FF",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <CalendarDays size={16} style={{ color: "#3B82F6" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "#1E293B", margin: 0 }}>
+                  {filterLabels[dateFilter]} {t("sales.salesList")}
+                </p>
+                <p style={{ fontSize: 11, color: "#94A3B8", margin: "2px 0 0" }}>
+                  {sales.length} {sales.length !== 1 ? t("sales.transactions_plural") : t("sales.transaction")}
+                </p>
+              </div>
+              {sales.length > 0 && (
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
+                    {t("sales.total")}
+                  </p>
+                  <p style={{ fontSize: 17, fontWeight: 800, color: "#1E293B", margin: 0 }}>
+                    {formatCurrency(totalRevenue)}
+                  </p>
                 </div>
+              )}
+            </div>
+
+            {/* export toolbar */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const,
+              padding: "10px 14px",
+              borderBottom: "1px solid #F8FAFC",
+              background: "#FAFAFA",
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", marginRight: "auto" }}>
+                {t("sales.export")} · {filterLabels[dateFilter]}
+              </span>
+              {[
+                { label: "CSV", action: handleExportCSV },
+                { label: "HTML", action: handleExportHTML },
+              ].map(({ label, action }) => (
+                <button key={label}
+                  onClick={action} disabled={!sales.length}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: "6px 12px", borderRadius: 10,
+                    border: "1.5px solid #E2E8F0",
+                    background: "#FFFFFF", color: "#475569",
+                    fontSize: 12, fontWeight: 600, cursor: !sales.length ? "not-allowed" : "pointer",
+                    opacity: !sales.length ? 0.4 : 1,
+                  }}>
+                  <Download size={11} /> {label}
+                </button>
+              ))}
+              {isOwner && (
+                <button onClick={handleDeleteAll} disabled={!sales.length || deleting}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: "6px 12px", borderRadius: 10,
+                    border: "1.5px solid #FCA5A5",
+                    background: "#FFF5F5", color: "#EF4444",
+                    fontSize: 12, fontWeight: 600,
+                    cursor: (!sales.length || deleting) ? "not-allowed" : "pointer",
+                    opacity: (!sales.length || deleting) ? 0.4 : 1,
+                  }}>
+                  {deleting ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> : <Trash2 size={11} />}
+                  {t("sales.deleteAll")}
+                </button>
+              )}
+            </div>
+
+            {/* sales content */}
+            {loadingSales ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "48px 16px", color: "#94A3B8" }}>
+                <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
+                <span style={{ fontSize: 13 }}>{t("sales.loadingSales")}</span>
               </div>
-            </>
-          )}
+            ) : sales.length === 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 24px", textAlign: "center", gap: 12 }}>
+                <div style={{
+                  width: 64, height: 64, borderRadius: 20,
+                  background: "#F8FAFC",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <Receipt size={28} style={{ color: "#CBD5E1" }} />
+                </div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "#94A3B8", margin: 0 }}>
+                  {tr("sales.noSalesYet", { period: filterLabels[dateFilter].toLowerCase() })}
+                </p>
+                <button onClick={openSaleModal} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "10px 20px", borderRadius: 14,
+                  background: "#1E293B", color: "#FFFFFF",
+                  border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  marginTop: 4,
+                }}>
+                  <Plus size={14} /> {t("sales.addFirstSale")}
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* mobile list */}
+                <div>
+                  {sales.map((sale, i) => (
+                    <div
+                      key={sale.id}
+                      style={{
+                        ...styles.saleRow,
+                        borderBottom: i < sales.length - 1 ? "1px solid #F8FAFC" : "none",
+                      }}
+                    >
+                      {/* icon */}
+                      <div style={{
+                        width: 42, height: 42, flexShrink: 0,
+                        borderRadius: 14, background: "#F8FAFC",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        <TrendingUp size={14} style={{ color: "#94A3B8" }} />
+                      </div>
+
+                      {/* info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                            {sale.item_name ?? "—"}
+                          </p>
+                          <span style={{
+                            background: "#F1F5F9", color: "#64748B",
+                            fontSize: 10, fontWeight: 700,
+                            padding: "2px 7px", borderRadius: 6, flexShrink: 0,
+                          }}>
+                            {sale.sale_number ?? "—"}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 11, color: "#94A3B8" }}>
+                            ×{sale.quantity} · {formatCurrency(sale.unit_price)}
+                          </span>
+                          <span style={{
+                            display: "flex", alignItems: "center", gap: 3,
+                            fontSize: 11, color: "#94A3B8",
+                          }}>
+                            <Clock size={9} />{formatTime(sale.created_at)}
+                          </span>
+                        </div>
+                        {sale.notes && (
+                          <p style={{
+                            fontSize: 11, fontWeight: 500, color: "#D97706",
+                            margin: "3px 0 0",
+                            background: "#FFFBEB",
+                            padding: "2px 7px", borderRadius: 6, display: "inline-block",
+                          }}>{sale.notes}</p>
+                        )}
+                      </div>
+
+                      {/* amount + delete */}
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                        <p style={{ fontSize: 14, fontWeight: 800, color: "#1E293B", margin: 0 }}>
+                          {formatCurrency(sale.sale_price)}
+                        </p>
+                        <button
+                          onClick={() => handleDeleteSale(sale)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 3,
+                            padding: "3px 8px", borderRadius: 8,
+                            border: "none", background: "transparent",
+                            fontSize: 11, fontWeight: 600, color: "#FDA4AF",
+                            cursor: "pointer", transition: "all 0.15s",
+                          }}
+                        >
+                          <Trash2 size={10} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* total footer */}
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "14px 16px",
+                    background: "#F8FAFC",
+                    borderTop: "2px solid #F1F5F9",
+                  }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      {t("sales.periodTotal")}
+                    </span>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: "#1E293B" }}>
+                      {formatCurrency(totalRevenue)}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
         </div>
       </div>
 
-      {/* ════════════════════════════════════════════════════
-          SALE MODAL  — Cart-based, mobile-first bottom sheet
-          ════════════════════════════════════════════════════ */}
+      {/* ════════════════════════════════════════════
+          SALE MODAL  — Cart bottom sheet
+          ════════════════════════════════════════════ */}
       {isSaleModalOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 backdrop-blur-sm"
-          onClick={(e) => { if (e.target === e.currentTarget) closeSaleModal(); }}
-        >
-          <div
-            className="flex w-full max-w-lg flex-col rounded-t-[2rem] bg-white shadow-2xl"
-            style={{ maxHeight: "92dvh", fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}
-          >
-            {/* ── sticky header ── */}
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 pt-5 pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900">
-                  <ShoppingCart size={16} className="text-white" />
+        <div style={styles.overlay} onClick={(e) => { if (e.target === e.currentTarget) closeSaleModal(); }}>
+          <div style={styles.sheet}>
+            <div style={styles.handle} />
+
+            {/* header */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "16px 16px 14px",
+              borderBottom: "1px solid #F8FAFC",
+              flexShrink: 0,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 12,
+                  background: "#1E293B",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <ShoppingCart size={16} style={{ color: "#FFFFFF" }} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900">{t("sales.newSale")}</h2>
-                  <p className="text-[11px] text-slate-400">
-                    {cartItems.length === 0 ? t("sales.getStarted") : `${cartItems.length} ${cartItems.length > 1 ? t("sales.itemsInCart") : t("sales.itemInCart")}`}
+                  <h2 style={{ fontSize: 15, fontWeight: 800, color: "#1E293B", margin: 0 }}>
+                    {t("sales.newSale")}
+                  </h2>
+                  <p style={{ fontSize: 11, color: "#94A3B8", margin: "2px 0 0" }}>
+                    {cartItems.length === 0
+                      ? t("sales.getStarted")
+                      : `${cartItems.length} ${cartItems.length > 1 ? t("sales.itemsInCart") : t("sales.itemInCart")}`}
                   </p>
                 </div>
               </div>
-              <button onClick={closeSaleModal}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200">
-                <X size={18} />
+              <button onClick={closeSaleModal} style={{
+                width: 36, height: 36, borderRadius: "50%",
+                border: "none", background: "#F1F5F9",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#94A3B8", cursor: "pointer",
+              }}>
+                <X size={16} />
               </button>
             </div>
 
-            {/* ── scrollable body ── */}
-            <div className="flex-1 overflow-y-auto">
+            {/* body */}
+            <div style={{ flex: 1, overflowY: "auto" }}>
 
               {/* EMPTY STATE */}
               {cartItems.length === 0 ? (
-                <div className="flex flex-col items-center gap-4 px-6 py-10">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-slate-50">
-                    <ShoppingBag size={32} className="text-slate-300" />
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "40px 24px" }}>
+                  <div style={{
+                    width: 72, height: 72, borderRadius: 24,
+                    background: "#F8FAFC",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <ShoppingBag size={30} style={{ color: "#CBD5E1" }} />
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-slate-700">{t("sales.cartEmpty")}</p>
-                    <p className="mt-1 text-xs text-slate-400">{t("sales.cartEmptyHint")}</p>
+                  <div style={{ textAlign: "center" }}>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: "#1E293B", margin: 0 }}>{t("sales.cartEmpty")}</p>
+                    <p style={{ fontSize: 13, color: "#94A3B8", margin: "6px 0 0" }}>{t("sales.cartEmptyHint")}</p>
                   </div>
                   <button
-                    type="button"
                     onClick={() => setShowInventoryPopup(true)}
-                    className="flex w-full items-center justify-between rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 px-5 py-5 transition hover:border-slate-300 hover:bg-white active:scale-[0.98]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900">
-                        <Plus size={20} className="text-white" />
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "16px 18px",
+                      borderRadius: 20,
+                      border: "2px dashed #E2E8F0",
+                      background: "#F8FAFC",
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                    }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 14,
+                        background: "#1E293B",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        <Plus size={20} style={{ color: "#FFFFFF" }} />
                       </div>
-                      <div className="text-left">
-                        <p className="text-sm font-bold text-slate-800">{t("sales.addItems")}</p>
-                        <p className="text-xs text-slate-400">{t("sales.browseInventory")}</p>
+                      <div style={{ textAlign: "left" }}>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: "#1E293B", margin: 0 }}>{t("sales.addItems")}</p>
+                        <p style={{ fontSize: 12, color: "#94A3B8", margin: "2px 0 0" }}>{t("sales.browseInventory")}</p>
                       </div>
                     </div>
-                    <ChevronRight size={18} className="text-slate-300" />
+                    <ChevronRight size={18} style={{ color: "#CBD5E1" }} />
                   </button>
                 </div>
               ) : (
-                <div className="space-y-0">
+                <div>
                   {/* CART ITEMS */}
                   {cartItems.map((ci, index) => {
-                    const lineTotal = Number(ci.item.cost_price) * ci.qty;
+                    const lineTotal  = Number(ci.item.cost_price) * ci.qty;
                     const isOverStock = ci.qty > ci.item.quantity;
                     return (
-                      <div
-                        key={ci.cartId}
-                        className={`flex items-center gap-3 px-4 py-3.5 ${index !== cartItems.length - 1 ? "border-b border-slate-100" : ""} ${isOverStock ? "bg-red-50/60" : ""}`}
-                      >
-                        {/* icon */}
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl">
+                      <div key={ci.cartId} style={{
+                        ...styles.cartRow,
+                        background: isOverStock ? "#FFF5F5" : "#FFFFFF",
+                        borderBottom: index < cartItems.length - 1 ? "1px solid #F8FAFC" : "none",
+                      }}>
+                        {/* emoji icon */}
+                        <div style={{
+                          width: 44, height: 44, flexShrink: 0,
+                          borderRadius: 14, background: "#F8FAFC",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 20,
+                        }}>
                           {getCategoryIcon(ci.item.category)}
                         </div>
 
-                        {/* name + price */}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-slate-900">{ci.item.item_name}</p>
-                          <p className="text-xs text-slate-400">{formatCurrency(ci.item.cost_price)} {t("sales.eachUnit")}</p>
+                        {/* name */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                            {ci.item.item_name}
+                          </p>
+                          <p style={{ fontSize: 11, color: "#94A3B8", margin: "2px 0 0" }}>
+                            {formatCurrency(ci.item.cost_price)} {t("sales.eachUnit")}
+                          </p>
                           {isOverStock && (
-                            <p className="flex items-center gap-1 text-[11px] font-semibold text-red-500">
+                            <p style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: "#EF4444", margin: "3px 0 0" }}>
                               <AlertCircle size={10} /> {tr("sales.onlyInStock", { n: ci.item.quantity })}
                             </p>
                           )}
                         </div>
 
-                        {/* qty stepper */}
-                        <div className="flex shrink-0 items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => updateCartQty(ci.cartId, -1)}
-                            className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-700 active:scale-90"
-                          >
+                        {/* stepper */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <button style={styles.qtyBtn(false)} onClick={() => updateCartQty(ci.cartId, -1)}>
                             <Minus size={13} />
                           </button>
-                          <span className="w-8 text-center text-sm font-extrabold text-slate-900">{ci.qty}</span>
-                          <button
-                            type="button"
-                            onClick={() => updateCartQty(ci.cartId, +1)}
-                            className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 text-white active:scale-90"
-                          >
+                          <span style={{ width: 28, textAlign: "center", fontSize: 14, fontWeight: 800, color: "#1E293B" }}>
+                            {ci.qty}
+                          </span>
+                          <button style={styles.qtyBtn(true)} onClick={() => updateCartQty(ci.cartId, +1)}>
                             <Plus size={13} />
                           </button>
                         </div>
 
-                        {/* line total */}
-                        <div className="w-20 shrink-0 text-right">
-                          <p className={`text-sm font-extrabold ${isOverStock ? "text-red-600" : "text-slate-900"}`}>
+                        {/* total + remove */}
+                        <div style={{ width: 70, textAlign: "right", flexShrink: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 800, color: isOverStock ? "#EF4444" : "#1E293B", margin: 0 }}>
                             {formatCurrency(lineTotal)}
                           </p>
-                          <button
-                            type="button"
-                            onClick={() => removeFromCart(ci.cartId)}
-                            className="mt-0.5 text-[11px] font-medium text-red-400 hover:text-red-600 active:scale-90"
-                          >
+                          <button onClick={() => removeFromCart(ci.cartId)}
+                            style={{
+                              background: "none", border: "none",
+                              fontSize: 11, fontWeight: 600, color: "#FDA4AF",
+                              cursor: "pointer", padding: "2px 0", marginTop: 3,
+                            }}>
                             {t("sales.remove")}
                           </button>
                         </div>
@@ -870,87 +1171,103 @@ const SalesPage = () => {
                     );
                   })}
 
-                  {/* ADD MORE ITEMS ROW */}
-                  <div className="border-t border-dashed border-slate-200 px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowInventoryPopup(true)}
-                      className="flex w-full items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3.5 transition hover:bg-slate-100 active:scale-[0.98]"
-                    >
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-200">
-                        <Plus size={16} className="text-slate-600" />
+                  {/* Add more */}
+                  <div style={{ padding: "10px 14px", borderTop: "1px dashed #E2E8F0" }}>
+                    <button onClick={() => setShowInventoryPopup(true)} style={{
+                      width: "100%", display: "flex", alignItems: "center", gap: 10,
+                      padding: "12px 14px", borderRadius: 16,
+                      background: "#F8FAFC", border: "none", cursor: "pointer",
+                      transition: "all 0.15s",
+                    }}>
+                      <div style={{
+                        width: 34, height: 34, borderRadius: 10,
+                        background: "#E2E8F0",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        <Plus size={15} style={{ color: "#64748B" }} />
                       </div>
-                      <span className="text-sm font-semibold text-slate-600">{t("sales.addMoreItems")}</span>
-                      <ChevronRight size={15} className="ml-auto text-slate-300" />
+                      <span style={{ flex: 1, textAlign: "left", fontSize: 13, fontWeight: 600, color: "#64748B" }}>
+                        {t("sales.addMoreItems")}
+                      </span>
+                      <ChevronRight size={14} style={{ color: "#CBD5E1" }} />
                     </button>
                   </div>
 
-                  {/* NOTES */}
-                  <div className="border-t border-slate-100 px-4 py-4">
-                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-400">
-                      {t("sales.note")} <span className="normal-case font-normal text-slate-300">({t("sales.noteOptional")})</span>
+                  {/* Notes */}
+                  <div style={{ padding: "10px 14px 16px", borderTop: "1px solid #F8FAFC" }}>
+                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                      {t("sales.note")} <span style={{ fontWeight: 400, textTransform: "none" }}>({t("sales.noteOptional")})</span>
                     </label>
-                    <Input
+                    <input
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder={t("sales.notePlaceholder")}
-                      className="h-11 rounded-xl border-slate-200 bg-slate-50 text-sm"
+                      style={{
+                        width: "100%", height: 44,
+                        borderRadius: 14,
+                        border: "1.5px solid #E2E8F0",
+                        background: "#F8FAFC",
+                        padding: "0 14px",
+                        fontSize: 13,
+                        color: "#1E293B",
+                        outline: "none",
+                        boxSizing: "border-box" as const,
+                      }}
                     />
                   </div>
                 </div>
               )}
             </div>
 
-            {/* ── sticky footer: totals + save ── */}
+            {/* sticky footer */}
             {cartItems.length > 0 && (
-              <div className="shrink-0 border-t border-slate-100 bg-white px-4 pb-6 pt-4">
+              <div style={{ flexShrink: 0, padding: "14px 16px 24px", borderTop: "1px solid #F8FAFC", background: "#FFFFFF" }}>
 
-                {/* Totals breakdown */}
-                <div className="mb-4 space-y-2 rounded-2xl bg-slate-50 px-4 py-3.5">
+                {/* Breakdown */}
+                <div style={styles.totalBar}>
                   {cartItems.map((ci) => (
-                    <div key={ci.cartId} className="flex items-center justify-between text-xs">
-                      <span className="truncate text-slate-500" style={{ maxWidth: "60%" }}>
+                    <div key={ci.cartId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, color: "#64748B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, maxWidth: "60%" }}>
                         {ci.item.item_name} × {ci.qty}
                       </span>
-                      <span className="font-semibold text-slate-700">
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>
                         {formatCurrency(Number(ci.item.cost_price) * ci.qty)}
                       </span>
                     </div>
                   ))}
-                  <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2.5">
-                    <span className="text-xs font-bold uppercase tracking-wide text-slate-500">{t("sales.grandTotal")}</span>
-                    <span className="text-xl font-extrabold text-slate-900">{formatCurrency(cartTotal)}</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1.5px solid #E2E8F0", paddingTop: 10, marginTop: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      {t("sales.grandTotal")}
+                    </span>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: "#1E293B", letterSpacing: "-0.03em" }}>
+                      {formatCurrency(cartTotal)}
+                    </span>
                   </div>
                 </div>
 
-                {/* Action buttons */}
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={closeSaleModal}
-                    className="flex h-13 flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.97]"
-                    style={{ height: 52 }}
-                  >
+                {/* Actions */}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={closeSaleModal} style={{
+                    flex: 1, height: 54, borderRadius: 18,
+                    border: "1.5px solid #E2E8F0",
+                    background: "#FFFFFF", color: "#475569",
+                    fontSize: 14, fontWeight: 600, cursor: "pointer",
+                  }}>
                     {t("sales.cancel")}
                   </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !cartValid}
-                    className={`flex flex-[2] items-center justify-center gap-2 rounded-2xl text-sm font-bold transition-all active:scale-[0.97] ${
-                      cartValid && !saving
-                        ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700"
-                        : "cursor-not-allowed bg-slate-200 text-slate-400"
-                    }`}
-                    style={{ height: 52 }}
-                  >
+                  <button onClick={handleSave} disabled={saving || !cartValid} style={styles.saveBtn(cartValid && !saving)}>
                     {saving ? (
-                      <><Loader2 size={18} className="animate-spin" /> {t("sales.savingSale")}</>
+                      <><Loader2 size={17} style={{ animation: "spin 1s linear infinite" }} /> {t("sales.savingSale")}</>
                     ) : (
                       <>
-                        <CheckCircle2 size={18} />
+                        <CheckCircle2 size={17} />
                         {t("sales.confirmSale")}
                         {cartValid && (
-                          <span className="ml-1 rounded-xl bg-white/25 px-2.5 py-1 text-xs font-extrabold">
+                          <span style={{
+                            background: "rgba(255,255,255,0.25)",
+                            padding: "3px 10px", borderRadius: 10,
+                            fontSize: 12, fontWeight: 800, marginLeft: 4,
+                          }}>
                             {formatCurrency(cartTotal)}
                           </span>
                         )}
@@ -964,79 +1281,85 @@ const SalesPage = () => {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════
+      {/* ════════════════════════════════════════
           INVENTORY POPUP — Add items to cart
-          ═══════════════════════════════════════════════════ */}
+          ════════════════════════════════════════ */}
       {showInventoryPopup && (
         <div
-          className="fixed inset-0 z-[200] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+          style={{ ...styles.overlay, zIndex: 200 }}
           onClick={(e) => { if (e.target === e.currentTarget) setShowInventoryPopup(false); }}
         >
-          <div
-            className="flex w-full max-w-md flex-col rounded-t-[2rem] bg-white shadow-2xl"
-            style={{ maxHeight: "88dvh", fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}
-          >
+          <div style={{ ...styles.sheet, maxWidth: 440, maxHeight: "90dvh" }}>
+            <div style={styles.handle} />
+
             {/* popup header */}
-            <div className="shrink-0 px-5 pt-5 pb-4">
-              <div className="flex items-center justify-between">
+            <div style={{ padding: "16px 16px 12px", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900">{t("sales.chooseItems")}</h2>
-                  <p className="text-[11px] text-slate-400">
+                  <h2 style={{ fontSize: 15, fontWeight: 800, color: "#1E293B", margin: 0 }}>
+                    {t("sales.chooseItems")}
+                  </h2>
+                  <p style={{ fontSize: 11, color: "#94A3B8", margin: "3px 0 0" }}>
                     {cartItems.length > 0
                       ? `${cartItems.length} ${cartItems.length > 1 ? t("sales.itemsInCart") : t("sales.itemInCart")} · ${t("sales.tapToAddMore")}`
                       : t("sales.tapToAdd")}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {cartItems.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowInventoryPopup(false)}
-                      className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm"
-                    >
+                    <button onClick={() => setShowInventoryPopup(false)} style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "7px 14px", borderRadius: 100,
+                      background: "#059669", color: "#FFFFFF",
+                      border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                      boxShadow: "0 4px 12px rgba(5,150,105,0.3)",
+                    }}>
                       <CheckCircle2 size={13} />
                       {t("sales.done")} ({cartItems.length})
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setShowInventoryPopup(false)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-400 transition hover:bg-slate-200"
-                  >
-                    <X size={16} />
+                  <button onClick={() => setShowInventoryPopup(false)} style={{
+                    width: 34, height: 34, borderRadius: "50%",
+                    border: "none", background: "#F1F5F9",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "#94A3B8", cursor: "pointer",
+                  }}>
+                    <X size={15} />
                   </button>
                 </div>
               </div>
 
-              {/* search bar */}
-              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <Search size={15} className="shrink-0 text-slate-400" />
-                  <input
-                    autoFocus
-                    value={inventoryQuery}
-                    onChange={(e) => setInventoryQuery(e.target.value)}
-                    placeholder={t("sales.searchPlaceholder")}
-                    className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-                  />
-                  {inventoryQuery && (
-                    <button type="button" onClick={() => setInventoryQuery("")}>
-                      <X size={13} className="text-slate-400" />
-                    </button>
-                  )}
-                </div>
+              {/* search */}
+              <div style={styles.searchBar}>
+                <Search size={14} style={{ color: "#94A3B8", flexShrink: 0 }} />
+                <input
+                  autoFocus
+                  value={inventoryQuery}
+                  onChange={(e) => setInventoryQuery(e.target.value)}
+                  placeholder={t("sales.searchPlaceholder")}
+                  style={{
+                    flex: 1, background: "transparent",
+                    border: "none", outline: "none",
+                    fontSize: 13, color: "#1E293B",
+                  }}
+                />
+                {inventoryQuery && (
+                  <button onClick={() => setInventoryQuery("")} style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", padding: 0 }}>
+                    <X size={13} />
+                  </button>
+                )}
               </div>
 
               {/* category pills */}
-              <div className="mt-3 overflow-x-auto">
-                <div className="flex gap-2 pb-1">
+              <div style={{ overflowX: "auto", marginTop: 10 }}>
+                <div style={{ display: "flex", gap: 7, paddingBottom: 4 }}>
                   {(["All", ...Object.keys(CATEGORY_CONFIG)]).map((cat) => {
-                    const active = selectedCategory === cat;
-                    const icon   = cat === "All" ? "🧾" : CATEGORY_CONFIG[cat]?.icon ?? "📦";
+                    const icon = cat === "All" ? "🧾" : CATEGORY_CONFIG[cat]?.icon ?? "📦";
                     return (
-                      <button key={cat} type="button" onClick={() => setSelectedCategory(cat)}
-                        className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold transition ${active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>
-                        <span className="mr-1">{icon}</span>{cat === "All" ? t("sales.all") : cat}
+                      <button key={cat} onClick={() => setSelectedCategory(cat)}
+                        style={styles.catPill(selectedCategory === cat)}>
+                        <span style={{ marginRight: 4 }}>{icon}</span>
+                        {cat === "All" ? t("sales.all") : cat}
                       </button>
                     );
                   })}
@@ -1045,119 +1368,137 @@ const SalesPage = () => {
 
               {/* subcategory pills */}
               {selectedCategory !== "All" && (
-                <div className="mt-2 overflow-x-auto">
-                  <div className="flex gap-2 pb-1">
-                    {subcategoryOptions.map((sub) => {
-                      const active = selectedSubcategory === sub;
-                      return (
-                        <button key={sub} type="button" onClick={() => setSelectedSubcategory(sub)}
-                          className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${active ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-700"}`}>
-                          {sub}
-                        </button>
-                      );
-                    })}
+                <div style={{ overflowX: "auto", marginTop: 8 }}>
+                  <div style={{ display: "flex", gap: 6, paddingBottom: 4 }}>
+                    {subcategoryOptions.map((sub) => (
+                      <button key={sub} onClick={() => setSelectedSubcategory(sub)}
+                        style={styles.catPill(selectedSubcategory === sub, true)}>
+                        {sub}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
             </div>
 
             {/* item list */}
-            <div className="flex-1 overflow-y-auto px-4 pb-4">
+            <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 16px" }}>
               {loadingInventory ? (
-                <div className="flex items-center justify-center py-10 text-slate-400">
-                  <Loader2 size={20} className="animate-spin" />
+                <div style={{ display: "flex", justifyContent: "center", padding: "40px 0", color: "#94A3B8" }}>
+                  <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} />
                 </div>
               ) : filteredInventory.length === 0 ? (
-                <div className="py-10 text-center text-sm text-slate-400">{t("sales.noItemsFound")}</div>
+                <div style={{ textAlign: "center", padding: "40px 0", fontSize: 13, color: "#94A3B8" }}>
+                  {t("sales.noItemsFound")}
+                </div>
               ) : (
-                <div className="space-y-2">
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {filteredInventory.map((item) => {
                     const inCart    = cartItems.find((ci) => ci.item.id === item.id);
                     const isSelected = popupSelectedItem?.id === item.id;
                     const outOfStock = item.quantity <= 0;
 
                     return (
-                      <div
-                        key={item.id}
-                        className={`overflow-hidden rounded-2xl border-2 transition-all ${
-                          outOfStock
-                            ? "cursor-not-allowed border-slate-100 opacity-40"
-                            : isSelected
-                              ? "border-slate-900 bg-slate-50 shadow-md"
-                              : inCart
-                                ? "border-emerald-400 bg-emerald-50/30"
-                                : "border-slate-100 bg-white hover:border-slate-200 hover:shadow-sm"
-                        }`}
-                      >
+                      <div key={item.id} style={styles.invCard(isSelected, !!inCart, outOfStock)}>
                         <button
-                          type="button"
                           disabled={outOfStock}
                           onClick={() => {
                             if (outOfStock) return;
-                            if (isSelected) {
-                              setPopupSelectedItem(null);
-                              setPopupItemQty("1");
-                            } else {
-                              setPopupSelectedItem(item);
-                              setPopupItemQty("1");
-                            }
+                            if (isSelected) { setPopupSelectedItem(null); setPopupItemQty("1"); }
+                            else { setPopupSelectedItem(item); setPopupItemQty("1"); }
                           }}
-                          className="flex w-full items-center gap-3 p-4 text-left"
+                          style={{
+                            width: "100%", display: "flex", alignItems: "center", gap: 12,
+                            padding: "12px 14px",
+                            background: "transparent", border: "none", cursor: outOfStock ? "not-allowed" : "pointer",
+                            textAlign: "left" as const,
+                          }}
                         >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xl">
+                          <div style={{
+                            width: 44, height: 44, flexShrink: 0,
+                            borderRadius: 14, background: "#F8FAFC",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 20,
+                          }}>
                             {getCategoryIcon(item.category)}
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="truncate text-sm font-semibold text-slate-800">{item.item_name}</p>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                              <p style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                                {item.item_name}
+                              </p>
                               {inCart && (
-                                <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                                <span style={{
+                                  background: "#DCFCE7", color: "#16A34A",
+                                  fontSize: 10, fontWeight: 700,
+                                  padding: "2px 7px", borderRadius: 100,
+                                  flexShrink: 0,
+                                }}>
                                   ✓ {inCart.qty} {t("sales.inCart")}
                                 </span>
                               )}
                             </div>
-                            <p className="mt-0.5 text-xs text-slate-500">
+                            <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>
                               {item.category ?? "Uncategorized"}{item.subcategory ? ` · ${item.subcategory}` : ""}
                             </p>
                           </div>
-                          <div className="shrink-0 text-right">
-                            <p className="text-sm font-bold text-slate-900">{formatCurrency(item.cost_price)}</p>
-                            <StockBadge qty={item.quantity} outOfStockLabel={t("sales.outOfStock")} leftLabel={t("sales.leftSuffix")} inStockLabel={t("sales.inStock")} />
+                          <div style={{ textAlign: "right", flexShrink: 0 }}>
+                            <p style={{ fontSize: 13, fontWeight: 800, color: "#1E293B", margin: "0 0 4px" }}>
+                              {formatCurrency(item.cost_price)}
+                            </p>
+                            <StockBadge qty={item.quantity}
+                              outOfStockLabel={t("sales.outOfStock")}
+                              leftLabel={t("sales.leftSuffix")}
+                              inStockLabel={t("sales.inStock")} />
                           </div>
                         </button>
 
-                        {/* inline qty picker when selected */}
+                        {/* inline qty picker */}
                         {isSelected && (
-                          <div className="flex items-center gap-3 border-t border-slate-100 bg-white px-4 py-3">
-                            <span className="text-xs font-bold uppercase tracking-wide text-slate-400">{t("sales.qty")}</span>
-                            <div className="flex flex-1 items-center gap-2">
+                          <div style={{
+                            display: "flex", alignItems: "center", gap: 10,
+                            padding: "10px 14px 12px",
+                            borderTop: "1px solid #F1F5F9",
+                            background: "#FAFAFA",
+                          }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                              {t("sales.qty")}
+                            </span>
+                            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
                               <button
-                                type="button"
                                 onClick={() => setPopupItemQty((v) => String(Math.max(1, parseInt(v, 10) - 1)))}
-                                className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700 active:scale-90"
-                              >
-                                <Minus size={14} />
+                                style={styles.qtyBtn(false)}>
+                                <Minus size={13} />
                               </button>
                               <input
                                 type="number" min={1} max={item.quantity}
                                 value={popupItemQty}
                                 onChange={(e) => setPopupItemQty(e.target.value)}
-                                className="h-9 w-16 rounded-xl border border-slate-200 bg-slate-50 text-center text-sm font-extrabold outline-none focus:border-slate-400"
+                                style={{
+                                  width: 56, height: 36, borderRadius: 12,
+                                  border: "1.5px solid #E2E8F0",
+                                  background: "#FFFFFF",
+                                  textAlign: "center",
+                                  fontSize: 15, fontWeight: 800, color: "#1E293B",
+                                  outline: "none",
+                                }}
                               />
                               <button
-                                type="button"
                                 onClick={() => setPopupItemQty((v) => String(Math.min(item.quantity, parseInt(v, 10) + 1)))}
-                                className="flex h-10 min-w-10 items-center justify-center rounded-xl bg-emerald-600 px-3 text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-700 active:scale-[0.97]"
-                              >
-                                <Plus size={14} />
+                                style={styles.qtyBtn(true)}>
+                                <Plus size={13} />
                               </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={confirmPopupItem}
-                              className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white shadow-sm shadow-emerald-200 active:scale-[0.97]"
-                            >
-                              <Plus size={14} /> {t("sales.add")}
+                            <button onClick={confirmPopupItem} style={{
+                              display: "flex", alignItems: "center", gap: 6,
+                              padding: "8px 16px", borderRadius: 12,
+                              background: "linear-gradient(135deg, #059669, #10B981)",
+                              color: "#FFFFFF", border: "none",
+                              fontSize: 13, fontWeight: 700, cursor: "pointer",
+                              boxShadow: "0 4px 12px rgba(5,150,105,0.3)",
+                              flexShrink: 0,
+                            }}>
+                              <Plus size={13} /> {t("sales.add")}
                             </button>
                           </div>
                         )}
@@ -1170,6 +1511,15 @@ const SalesPage = () => {
           </div>
         </div>
       )}
+
+      {/* CSS animations */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        * { -webkit-tap-highlight-color: transparent; }
+        ::-webkit-scrollbar { width: 0; height: 0; }
+      `}</style>
     </AppShell>
   );
 };
